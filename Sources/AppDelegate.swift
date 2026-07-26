@@ -43,19 +43,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: First run
 
+    /// One list with two rows, both of which teach a gesture that is otherwise
+    /// invisible: the window docks by being dragged to an edge, and every setting
+    /// lives behind a right-click. Seeding more than this would only give the
+    /// first-time user someone else's to-dos to delete.
     private func seedFirstRun() {
-        let seeds: [(String, NoteColor, [String])] = [
-            ("论文 / 实验", .red, ["画 Pareto front 图", "写 method 章节", "约导师 review"]),
-            ("实习任务", .blue, ["端云调度实验", "周会对齐"]),
-            ("私事", .green, ["订机票"]),
-        ]
-        for (title, color, items) in seeds {
-            var n = Note()
-            n.title = title
-            n.color = color
-            n.items = items.map { ChecklistItem(text: $0) }
-            Store.shared.add(n)
-        }
+        var n = Note()
+        n.title = L("seed.title")
+        n.color = .yellow
+        n.items = [ChecklistItem(text: L("seed.item1")),
+                   ChecklistItem(text: L("seed.item2"))]
+        Store.shared.add(n)
     }
 
     // MARK: Dock hover
@@ -114,8 +112,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         } catch {
             let a = NSAlert()
-            a.messageText = "无法自动设置开机启动"
-            a.informativeText = "请到「系统设置 → 通用 → 登录项」手动添加 Eaves。\n\n（\(error.localizedDescription)）"
+            a.messageText = L("alert.loginItem.title")
+            a.informativeText = L("alert.loginItem.body", error.localizedDescription)
             a.runModal()
         }
     }
@@ -139,12 +137,12 @@ extension AppDelegate: NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        add(menu, "新建清单", #selector(newNote), key: "n")
+        add(menu, L("menu.newList"), #selector(newNote), key: "n")
         menu.addItem(.separator())
 
         let notes = Store.shared.notes
         if notes.isEmpty {
-            let mi = NSMenuItem(title: "（还没有清单）", action: nil, keyEquivalent: "")
+            let mi = NSMenuItem(title: L("menu.noLists"), action: nil, keyEquivalent: "")
             mi.isEnabled = false
             menu.addItem(mi)
         } else {
@@ -168,7 +166,7 @@ extension AppDelegate: NSMenuDelegate {
 
         let tags = Store.shared.allTags
         if !tags.isEmpty {
-            let filter = NSMenuItem(title: "按标签显示", action: nil, keyEquivalent: "")
+            let filter = NSMenuItem(title: L("menu.filterByTag"), action: nil, keyEquivalent: "")
             let sub = NSMenu()
             for t in tags {
                 let mi = NSMenuItem(title: t, action: #selector(toggleTagFilter(_:)), keyEquivalent: "")
@@ -181,7 +179,7 @@ extension AppDelegate: NSMenuDelegate {
             menu.addItem(filter)
         }
 
-        add(menu, Store.shared.allHidden ? "显示便签窗口" : "隐藏便签窗口",
+        add(menu, L(Store.shared.allHidden ? "menu.showWindow" : "menu.hideWindow"),
             #selector(toggleHideAll), key: "h")
 
         menu.addItem(.separator())
@@ -189,16 +187,16 @@ extension AppDelegate: NSMenuDelegate {
         // The same menu the note's own right-click offers. People look for
         // settings under the menu-bar icon, so it has to be here too — and
         // sharing one builder keeps the two from disagreeing.
-        let setItem = NSMenuItem(title: "设置", action: nil, keyEquivalent: ",")
+        let setItem = NSMenuItem(title: L("menu.settings"), action: nil, keyEquivalent: ",")
         setItem.submenu = board.settingsMenu()
         menu.addItem(setItem)
 
         menu.addItem(.separator())
-        let login = add(menu, "开机时启动", #selector(toggleLoginItem))
+        let login = add(menu, L("menu.launchAtLogin"), #selector(toggleLoginItem))
         login.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
-        add(menu, "打开数据文件夹", #selector(revealData))
+        add(menu, L("menu.revealData"), #selector(revealData))
         menu.addItem(.separator())
-        add(menu, "退出 Eaves", #selector(quit), key: "q")
+        add(menu, L("menu.quit"), #selector(quit), key: "q")
     }
 
     @discardableResult

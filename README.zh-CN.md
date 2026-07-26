@@ -115,15 +115,15 @@ open Eaves.app
 
 ## 已知的不足
 
-- **界面只有中文。** 97 处文案是写死在代码里的。除此之外结构上没有障碍 ——
-  把它们抽到 `Localizable.strings` 是个边界很清楚的入门任务，
-  [欢迎来提 PR](https://github.com/passionate11/eaves/issues)。
+- **目前只有中文和英文。** 所有文案都走 `Localizable.strings`，
+  加一种语言就是翻一个文件，不用改代码、不用装 Xcode，
+  见下面的[翻译成别的语言](#翻译成别的语言)。
 - **只有一个窗口。** 多份清单是同一个窗口里的标签页，没法两张便签同时摊在桌面上。
 - **不同步、没有手机端、没有提醒。** 这是故意的。
 
 ## 想改它
 
-一共约 3000 行 AppKit，七个文件，零依赖，也没有包管理器：
+一共约 3000 行 AppKit，八个文件，零依赖，也没有包管理器：
 
 | 文件 | |
 |---|---|
@@ -133,17 +133,39 @@ open Eaves.app
 | `Sources/NoteWindow.swift` | 无边框窗口、拖动、取消位置约束 |
 | `Sources/AppDelegate.swift` | 状态栏图标、悬停定时器、开机启动 |
 | `Sources/MainMenu.swift` | 那个看不见但让 ⌘ 快捷键生效的主菜单 |
+| `Sources/Localization.swift` | `L("key")`，`NSLocalizedString` 的三行封装 |
+| `Resources/*.lproj/` | 一种语言一个文件夹 |
 | `Tools/` | 生成图标、截图、探测显示器布局 |
 
 欢迎 PR。注释写的基本都是「为什么这么写」而不是「这行在干嘛」 ——
 看到哪段代码觉得别扭，上面的注释多半写了它是为了绕开哪个坑。
 
+## 翻译成别的语言
+
+所有会被看到的文字都在 `Resources/<语言>.lproj/` 里，key 按意思命名而不是照抄英文，
+所以以后改英文措辞不会连带把别的语言弄坏。加一种语言：
+
+1. 把 `Resources/en.lproj/` 复制成 `Resources/<代码>.lproj/` —— `de`、`ja`、
+   `fr`、`pt-BR`，按 [BCP 47](https://developer.apple.com/documentation/xcode/choosing-localization-regions-and-scripts) 写。
+2. 翻 `Localizable.strings` 里每行 `"key" = "value";` 等号右边那半截，key 别动。
+3. `Localizable.stringsdict` 也一样。里面只有一条会随数字变形的句子，
+   填你的语言真正用得到的复数档位 —— 英文要 `one` 和 `other`，中文只要 `other`，
+   波兰语要三档。macOS 会按 CLDR 规则自己挑。
+4. 在 `build.sh` 的 `CFBundleLocalizations` 里加上 `<代码>`。
+5. `./build.sh`，然后用
+   `Eaves.app/Contents/MacOS/Eaves -AppleLanguages '(<代码>)'`
+   跑起来看看 —— 不用改系统语言。
+
+要是某句翻完撑坏了按钮，在 PR 里说一声就行，别为了塞进去把话缩得很怪 ——
+该让步的是布局，不是翻译。
+
 ## 想帮忙的话
 
-不收捐款，没有 sponsor 按钮，也不会有收费版。三件真的有用的事：
+不收捐款，没有 sponsor 按钮，也不会有收费版。四件真的有用的事：
 
 - **点个 star。** 这么小的工具，最缺的就是被看见。
 - **提 issue**，带上 macOS 版本和出问题时你在干嘛。
+- **翻成你的母语。** 一个文件，不用写代码，见上面那节。
 - **说说缺什么功能。** 这比什么都影响后续怎么做。
 
 ## 许可

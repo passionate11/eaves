@@ -246,8 +246,8 @@ final class TabBarView: FlippedView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        chevron.toolTip = "折叠成一条标签栏"
-        plus.toolTip = "新建清单"
+        chevron.toolTip = L("tabBar.collapse.tip")
+        plus.toolTip = L("tabBar.newList.tip")
         addSubview(hide)
         addSubview(chevron)
         addSubview(plus)
@@ -282,9 +282,8 @@ final class TabBarView: FlippedView {
         hide.image = NSImage(systemSymbolName: hideEdge.arrowSymbol,
                              accessibilityDescription: nil)?
             .withSymbolConfiguration(hcfg)
-        hide.toolTip = autoHide
-            ? "收进\(hideEdge.label)（自动隐藏已开，写完停手会自己收）"
-            : "收进\(hideEdge.label)"
+        let tuck = L("tuck.\(hideEdge.rawValue)")
+        hide.toolTip = autoHide ? tuck + L("tuck.autoHint") : tuck
         applyColors()
         layoutTabs(notes: notes, selected: selected)
         needsDisplay = true
@@ -502,7 +501,7 @@ final class ItemRowView: FlippedView {
         nextField.focusRingType = .none
         nextField.font = ItemRowView.nextFont
         nextField.textColor = .secondaryLabelColor
-        nextField.placeholderString = "接下来…"
+        nextField.placeholderString = L("field.nextLine")
         nextField.delegate = self
         nextField.cell?.usesSingleLineMode = false
         nextField.cell?.wraps = true

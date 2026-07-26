@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  中文没有单复数变化，所以只需要 other 一档。保留这个文件是因为
+  stringsdict 一旦为某个语言缺失，Cocoa 会回退到开发语言（英文）。
+-->
+<plist version="1.0">
+<dict>
+  <key>alert.deleteList.body</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@items@，无法撤销。</string>
+    <key>items</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>zero</key>
+      <string>这个空标签页会被移除</string>
+      <key>other</key>
+      <string>这个标签页和它的 %d 个待办会被移除</string>
+    </dict>
+  </dict>
+</dict>
+</plist>

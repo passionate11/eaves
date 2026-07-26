@@ -28,14 +28,14 @@ enum MainMenu {
         let item = NSMenuItem()
         let menu = NSMenu(title: "Eaves")
 
-        let new = NSMenuItem(title: "新建清单", action: #selector(AppDelegate.newNote),
+        let new = NSMenuItem(title: L("menu.newList"), action: #selector(AppDelegate.newNote),
                              keyEquivalent: "n")
         new.target = target
         menu.addItem(new)
 
         menu.addItem(.separator())
 
-        let hide = NSMenuItem(title: "显示/隐藏便签窗口",
+        let hide = NSMenuItem(title: L("menu.toggleWindow"),
                               action: #selector(AppDelegate.toggleHideAll), keyEquivalent: "h")
         hide.keyEquivalentModifierMask = [.command, .shift]
         hide.target = target
@@ -43,7 +43,7 @@ enum MainMenu {
 
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "退出 Eaves", action: #selector(AppDelegate.quit),
+        let quit = NSMenuItem(title: L("menu.quit"), action: #selector(AppDelegate.quit),
                               keyEquivalent: "q")
         quit.target = target
         menu.addItem(quit)
@@ -55,21 +55,21 @@ enum MainMenu {
     /// The standard editing chords. `nil` targets on purpose — see the type doc.
     private static func editItem() -> NSMenuItem {
         let item = NSMenuItem()
-        let menu = NSMenu(title: "编辑")
+        let menu = NSMenu(title: L("menu.edit"))
 
-        add(menu, "撤销", #selector(UndoManager.undo), "z")
-        add(menu, "重做", #selector(UndoManager.redo), "Z", [.command, .shift])
+        add(menu, L("menu.undo"), #selector(UndoManager.undo), "z")
+        add(menu, L("menu.redo"), #selector(UndoManager.redo), "Z", [.command, .shift])
         menu.addItem(.separator())
-        add(menu, "剪切", #selector(NSText.cut(_:)), "x")
-        add(menu, "拷贝", #selector(NSText.copy(_:)), "c")
-        add(menu, "粘贴", #selector(NSText.paste(_:)), "v")
+        add(menu, L("menu.cut"), #selector(NSText.cut(_:)), "x")
+        add(menu, L("menu.copy"), #selector(NSText.copy(_:)), "c")
+        add(menu, L("menu.paste"), #selector(NSText.paste(_:)), "v")
         // Paste-and-match-style matters here: the rows are plain strings, so a
         // styled paste would silently drop its styling anyway. Better to have
         // the chord land somewhere predictable.
-        add(menu, "粘贴为纯文本",
+        add(menu, L("menu.pastePlain"),
             #selector(NSTextView.pasteAsPlainText(_:)), "V", [.command, .shift, .option])
-        add(menu, "删除", #selector(NSText.delete(_:)), "")
-        add(menu, "全选", #selector(NSText.selectAll(_:)), "a")
+        add(menu, L("menu.delete"), #selector(NSText.delete(_:)), "")
+        add(menu, L("menu.selectAll"), #selector(NSText.selectAll(_:)), "a")
 
         item.submenu = menu
         return item

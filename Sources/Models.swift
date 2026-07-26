@@ -8,13 +8,13 @@ enum NoteColor: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .red: return "红"
-        case .orange: return "橙"
-        case .yellow: return "黄"
-        case .green: return "绿"
-        case .blue: return "蓝"
-        case .purple: return "紫"
-        case .gray: return "灰"
+        case .red: return L("color.red")
+        case .orange: return L("color.orange")
+        case .yellow: return L("color.yellow")
+        case .green: return L("color.green")
+        case .blue: return L("color.blue")
+        case .purple: return L("color.purple")
+        case .gray: return L("color.gray")
         }
     }
 
@@ -54,23 +54,23 @@ enum Theme: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .auto: return "跟随系统"
-        case .paper: return "纸白"
-        case .sand: return "米黄"
-        case .graphite: return "石墨"
-        case .ink: return "午夜蓝"
-        case .glass: return "毛玻璃"
+        case .auto: return L("theme.auto")
+        case .paper: return L("theme.paper")
+        case .sand: return L("theme.sand")
+        case .graphite: return L("theme.graphite")
+        case .ink: return L("theme.ink")
+        case .glass: return L("theme.glass")
         }
     }
 
     var detail: String {
         switch self {
-        case .auto: return "浅色/深色自动切换（不透明）"
-        case .paper: return "冷白纸面，始终浅色"
-        case .sand: return "暖米色便签纸，始终浅色"
-        case .graphite: return "中性深灰，始终深色"
-        case .ink: return "偏蓝的深色，始终深色"
-        case .glass: return "半透明毛玻璃，桌面透出来"
+        case .auto: return L("theme.auto.detail")
+        case .paper: return L("theme.paper.detail")
+        case .sand: return L("theme.sand.detail")
+        case .graphite: return L("theme.graphite.detail")
+        case .ink: return L("theme.ink.detail")
+        case .glass: return L("theme.glass.detail")
         }
     }
 
@@ -207,11 +207,11 @@ enum DockEdge: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .none: return "不吸边"
-        case .left: return "左边"
-        case .right: return "右边"
-        case .top: return "上边"
-        case .bottom: return "下边"
+        case .none: return L("edge.none")
+        case .left: return L("edge.left")
+        case .right: return L("edge.right")
+        case .top: return L("edge.top")
+        case .bottom: return L("edge.bottom")
         }
     }
 
@@ -243,17 +243,17 @@ enum HideSpeed: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .fast: return "快"
-        case .normal: return "标准"
-        case .slow: return "慢"
+        case .fast: return L("speed.fast")
+        case .normal: return L("speed.normal")
+        case .slow: return L("speed.slow")
         }
     }
 
     var detail: String {
         switch self {
-        case .fast: return "鼠标一离开就收（约 0.4 秒）"
-        case .normal: return "离开后稍等一下再收（约 0.8 秒）"
-        case .slow: return "留足反悔时间（约 1.5 秒）"
+        case .fast: return L("speed.fast.detail")
+        case .normal: return L("speed.normal.detail")
+        case .slow: return L("speed.slow.detail")
         }
     }
 
@@ -289,7 +289,7 @@ enum HideSpeed: String, Codable, CaseIterable {
 
 struct Note: Codable, Identifiable, Equatable {
     var id: UUID = UUID()
-    var title: String = "新便签"
+    var title: String = L("note.untitled")
     var items: [ChecklistItem] = []
     var color: NoteColor = .blue
     var tags: [String] = []

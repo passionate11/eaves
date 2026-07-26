@@ -294,7 +294,7 @@ final class BoardController: NSObject, NSWindowDelegate {
         addField.drawsBackground = false
         addField.focusRingType = .none
         addField.font = .systemFont(ofSize: 12.5)
-        addField.placeholderString = "＋ 新增待办"
+        addField.placeholderString = L("field.addTodo")
         addField.delegate = self
         addField.cell?.usesSingleLineMode = true
 
@@ -302,7 +302,7 @@ final class BoardController: NSObject, NSWindowDelegate {
         emptyLabel.isSelectable = false
         emptyLabel.alignment = .center
         emptyLabel.textColor = .tertiaryLabelColor
-        emptyLabel.stringValue = "点右上角 ＋ 新建一个清单"
+        emptyLabel.stringValue = L("empty.hint")
         emptyLabel.isHidden = true
 
         for h in handles {
@@ -874,12 +874,12 @@ final class BoardController: NSObject, NSWindowDelegate {
         // while auto-hide is off.
         menu.autoenablesItems = false
 
-        let top = add(menu, "浮动在最前面", #selector(toggleTop))
+        let top = add(menu, L("settings.floatOnTop"), #selector(toggleTop))
         top.state = Store.shared.floatOnTop ? .on : .off
-        top.toolTip = "盖在其他 App 上面，包括全屏窗口"
+        top.toolTip = L("settings.floatOnTop.tip")
 
         menu.addItem(.separator())
-        menu.addItem(header("外观"))
+        menu.addItem(header(L("settings.appearance")))
         for t in Theme.allCases {
             let mi = add(menu, "  " + t.label, #selector(pickTheme(_:)))
             mi.representedObject = t.rawValue
@@ -888,7 +888,7 @@ final class BoardController: NSObject, NSWindowDelegate {
         }
 
         menu.addItem(.separator())
-        menu.addItem(header("吸边位置"))
+        menu.addItem(header(L("settings.dockEdge")))
         for e in DockEdge.allCases {
             let mi = add(menu, "  " + e.label, #selector(pickEdge(_:)))
             mi.representedObject = e.rawValue
@@ -899,18 +899,18 @@ final class BoardController: NSObject, NSWindowDelegate {
             // not look like the option silently went missing.
             if e != .none, hasNeighbor(beyond: e) {
                 mi.isEnabled = false
-                mi.toolTip = "这一边接着另一台显示器，收起来会跑到隔壁屏幕上"
+                mi.toolTip = L("settings.dockEdge.blocked.tip")
             }
         }
 
         menu.addItem(.separator())
-        let auto = add(menu, "写完自动收起", #selector(toggleAutoHide))
+        let auto = add(menu, L("settings.autoHide"), #selector(toggleAutoHide))
         auto.state = Store.shared.autoHide ? .on : .off
-        auto.toolTip = "吸边后，鼠标离开且停止输入才会收起"
+        auto.toolTip = L("settings.autoHide.tip")
 
         // Only meaningful when auto-hide is on, so it is disabled rather than
         // hidden — a setting that vanishes is harder to find than a greyed one.
-        menu.addItem(header("收起速度"))
+        menu.addItem(header(L("settings.hideSpeed")))
         for sp in HideSpeed.allCases {
             let mi = add(menu, "  " + sp.label, #selector(pickHideSpeed(_:)))
             mi.representedObject = sp.rawValue
@@ -939,7 +939,7 @@ final class BoardController: NSObject, NSWindowDelegate {
         let menu = NSMenu()
 
         if let id, let note = Store.shared.note(id) {
-            let colorItem = NSMenuItem(title: "颜色", action: nil, keyEquivalent: "")
+            let colorItem = NSMenuItem(title: L("menu.color"), action: nil, keyEquivalent: "")
             let colorMenu = NSMenu()
             for c in NoteColor.allCases {
                 let mi = NSMenuItem(title: c.label, action: #selector(pickColor(_:)),
@@ -957,28 +957,29 @@ final class BoardController: NSObject, NSWindowDelegate {
             colorItem.submenu = colorMenu
             menu.addItem(colorItem)
 
-            add(menu, "重命名", #selector(renameNote))
-            add(menu, note.tags.isEmpty ? "标签…"
-                                        : "标签：\(note.tags.joined(separator: ", "))",
+            add(menu, L("menu.rename"), #selector(renameNote))
+            add(menu, note.tags.isEmpty
+                    ? L("menu.tags")
+                    : L("menu.tagsWith", note.tags.joined(separator: ", ")),
                 #selector(editTags))
-            add(menu, "清除已完成项", #selector(clearDone))
-            add(menu, "复制为文本", #selector(copyAsText))
+            add(menu, L("menu.clearDone"), #selector(clearDone))
+            add(menu, L("menu.copyAsText"), #selector(copyAsText))
             menu.addItem(.separator())
         }
 
-        add(menu, "新建清单", #selector(addNote))
+        add(menu, L("menu.newList"), #selector(addNote))
         menu.addItem(.separator())
 
-        let setItem = NSMenuItem(title: "设置", action: nil, keyEquivalent: "")
+        let setItem = NSMenuItem(title: L("menu.settings"), action: nil, keyEquivalent: "")
         setItem.submenu = settingsMenu()
         menu.addItem(setItem)
 
-        add(menu, Store.shared.dock == .none ? "收进最近的边缘" : "放回桌面（取消吸边）",
+        add(menu, L(Store.shared.dock == .none ? "menu.tuckAway" : "menu.undock"),
             #selector(toggleDock))
 
         if let id, Store.shared.notes.count > 0 {
             menu.addItem(.separator())
-            let del = add(menu, "删除这个清单", #selector(deleteNote))
+            let del = add(menu, L("menu.deleteList"), #selector(deleteNote))
             del.representedObject = id
         }
         return menu
@@ -1066,11 +1067,11 @@ final class BoardController: NSObject, NSWindowDelegate {
         guard let id = sender.representedObject as? UUID,
               let note = Store.shared.note(id) else { return }
         let a = NSAlert()
-        a.messageText = "删除清单「\(note.title)」？"
-        a.informativeText = "这个标签页和它的 \(note.items.count) 个待办会被移除，无法撤销。"
+        a.messageText = L("alert.deleteList.title", note.title)
+        a.informativeText = LPlural("alert.deleteList.body", note.items.count)
         a.alertStyle = .warning
-        a.addButton(withTitle: "删除")
-        a.addButton(withTitle: "取消")
+        a.addButton(withTitle: L("alert.delete"))
+        a.addButton(withTitle: L("alert.cancel"))
         if a.runModal() == .alertFirstButtonReturn {
             Store.shared.remove(id)
         }
@@ -1079,13 +1080,13 @@ final class BoardController: NSObject, NSWindowDelegate {
     @objc private func editTags() {
         guard let note = current else { return }
         let a = NSAlert()
-        a.messageText = "标签"
-        a.informativeText = "用逗号分隔，例如：论文, 紧急"
+        a.messageText = L("alert.tags.title")
+        a.informativeText = L("alert.tags.body")
         let tf = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 22))
         tf.stringValue = note.tags.joined(separator: ", ")
         a.accessoryView = tf
-        a.addButton(withTitle: "好")
-        a.addButton(withTitle: "取消")
+        a.addButton(withTitle: L("alert.ok"))
+        a.addButton(withTitle: L("alert.cancel"))
         if a.runModal() == .alertFirstButtonReturn {
             let tags = tf.stringValue
                 .split(whereSeparator: { $0 == "," || $0 == "，" })

@@ -34,6 +34,10 @@ fi
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+# One .lproj per language, copied wholesale. Cocoa picks between them at launch
+# from the user's language order, so adding a translation means adding a folder
+# here and a code to CFBundleLocalizations below — no code change.
+cp -R Resources/*.lproj "$APP/Contents/Resources/"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -48,6 +52,14 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key>       <string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>CFBundleVersion</key>           <string>1</string>
+  <!-- The language the .strings keys were written against, and the fallback
+       when the user's preferred languages are all missing. -->
+  <key>CFBundleDevelopmentRegion</key> <string>en</string>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>en</string>
+    <string>zh-Hans</string>
+  </array>
   <key>LSMinimumSystemVersion</key>    <string>${DEPLOY_TARGET}</string>
   <key>LSUIElement</key>               <true/>
   <key>NSHighResolutionCapable</key>   <true/>

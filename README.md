@@ -126,16 +126,16 @@ sync and there never will be.
 
 ## Known limitations
 
-- **The UI is Chinese-only.** All 97 strings are hardcoded. The code is
-  otherwise ready for it — pulling them into a `Localizable.strings` is a
-  well-scoped first contribution, and [issues are open](https://github.com/passionate11/eaves/issues).
+- **Only English and Simplified Chinese so far.** Every string goes through
+  `Localizable.strings`, so adding a language means translating one file — see
+  [Translating](#translating) below. No code change, no Xcode.
 - **One window.** Multiple lists live as tabs in a single window; you can't
   have two notes on screen at once.
 - **No sync, no mobile app, no reminders.** By design.
 
 ## Building on it
 
-The whole thing is about 3,000 lines of AppKit across seven files, no
+The whole thing is about 3,000 lines of AppKit across eight files, no
 dependencies and no package manager:
 
 | File | |
@@ -146,19 +146,45 @@ dependencies and no package manager:
 | `Sources/NoteWindow.swift` | Borderless window, drag, no frame constraint |
 | `Sources/AppDelegate.swift` | Status item, hover timer, login item |
 | `Sources/MainMenu.swift` | The invisible menu that makes ⌘-chords resolve |
+| `Sources/Localization.swift` | `L("key")` — the three-line wrapper over `NSLocalizedString` |
+| `Resources/*.lproj/` | One folder per language |
 | `Tools/` | Icon generation, screenshots, display probing |
 
 Pull requests welcome. The code is commented at the level of *why*, not *what* —
 if something looks strange, the comment above it probably explains which bug it
 came from.
 
+## Translating
+
+Every piece of visible text lives in `Resources/<language>.lproj/`, keyed by
+meaning rather than by its English wording, so a translation never breaks when
+the English gets reworded. To add one:
+
+1. Copy `Resources/en.lproj/` to `Resources/<code>.lproj/` — `de`, `ja`,
+   `fr`, `pt-BR`, whatever [BCP 47 tag](https://developer.apple.com/documentation/xcode/choosing-localization-regions-and-scripts)
+   fits.
+2. Translate the right-hand side of each `"key" = "value";` line in
+   `Localizable.strings`. Leave the keys alone.
+3. Do the same for `Localizable.stringsdict`. It holds the one string whose
+   grammar depends on a number, and it needs whichever plural categories your
+   language actually uses — English has `one` and `other`, Chinese only
+   `other`, Polish three. macOS picks the right one from CLDR rules.
+4. Add `<code>` to `CFBundleLocalizations` in `build.sh`.
+5. `./build.sh` and check it: `Eaves.app/Contents/MacOS/Eaves -AppleLanguages '(<code>)'`
+   runs the app in your language without touching your system settings.
+
+If a string comes out too long for its button, say so in the PR rather than
+abbreviating it into something odd — the layout should give way, not the
+translation.
+
 ## Helping out
 
 No donations, no sponsor button, no paid tier — Eaves is MIT and stays that
-way. Three things that actually help:
+way. Four things that actually help:
 
 - **Star the repo.** Visibility is the whole game for a tool this small.
 - **File a bug** with your macOS version and what you were doing when it broke.
+- **Translate it into your language.** One file, no code — see above.
 - **Tell me what's missing.** Feature requests shape this more than anything
   else does.
 

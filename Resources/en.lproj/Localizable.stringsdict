@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The one string in Eaves whose grammar depends on a number.
+
+  It lives here rather than in Localizable.strings because "1 to-dos" is wrong
+  in English and no amount of careful wording in the .strings file can fix it.
+  Cocoa picks the right variant from the language's CLDR plural rules, so a
+  translator only fills in the categories their language actually uses —
+  English needs "one" and "other", Chinese needs only "other", Polish needs
+  three.
+-->
+<plist version="1.0">
+<dict>
+  <key>alert.deleteList.body</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@items@ will be removed. This cannot be undone.</string>
+    <key>items</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>zero</key>
+      <string>This tab, which is empty,</string>
+      <key>one</key>
+      <string>This tab and its 1 to-do</string>
+      <key>other</key>
+      <string>This tab and its %d to-dos</string>
+    </dict>
+  </dict>
+</dict>
+</plist>

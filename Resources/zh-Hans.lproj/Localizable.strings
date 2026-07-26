@@ -1,0 +1,112 @@
+/* Eaves — 简体中文 */
+
+/* --- 菜单栏与主菜单 --- */
+"menu.newList"          = "新建清单";
+"menu.toggleWindow"     = "显示/隐藏便签窗口";
+"menu.showWindow"       = "显示便签窗口";
+"menu.hideWindow"       = "隐藏便签窗口";
+"menu.settings"         = "设置";
+"menu.quit"             = "退出 Eaves";
+"menu.noLists"          = "（还没有清单）";
+"menu.filterByTag"      = "按标签显示";
+"menu.launchAtLogin"    = "开机时启动";
+"menu.revealData"       = "打开数据文件夹";
+
+/* --- 编辑菜单 --- */
+"menu.edit"             = "编辑";
+"menu.undo"             = "撤销";
+"menu.redo"             = "重做";
+"menu.cut"              = "剪切";
+"menu.copy"             = "拷贝";
+"menu.paste"            = "粘贴";
+"menu.pastePlain"       = "粘贴为纯文本";
+"menu.delete"           = "删除";
+"menu.selectAll"        = "全选";
+
+/* --- 标签页右键菜单 --- */
+"menu.color"            = "颜色";
+"menu.rename"           = "重命名";
+"menu.tags"             = "标签…";
+"menu.tagsWith"         = "标签：%@";
+"menu.clearDone"        = "清除已完成项";
+"menu.copyAsText"       = "复制为文本";
+"menu.deleteList"       = "删除这个清单";
+"menu.tuckAway"         = "收进最近的边缘";
+"menu.undock"           = "放回桌面（取消吸边）";
+
+/* --- 设置 --- */
+"settings.floatOnTop"           = "浮动在最前面";
+"settings.floatOnTop.tip"       = "盖在其他 App 上面，包括全屏窗口";
+"settings.appearance"           = "外观";
+"settings.dockEdge"             = "吸边位置";
+"settings.dockEdge.blocked.tip" = "这一边接着另一台显示器，收起来会跑到隔壁屏幕上";
+"settings.autoHide"             = "写完自动收起";
+"settings.autoHide.tip"         = "吸边后，鼠标离开且停止输入才会收起";
+"settings.hideSpeed"            = "收起速度";
+
+/* --- 颜色 --- */
+"color.red"     = "红";
+"color.orange"  = "橙";
+"color.yellow"  = "黄";
+"color.green"   = "绿";
+"color.blue"    = "蓝";
+"color.purple"  = "紫";
+"color.gray"    = "灰";
+
+/* --- 主题 --- */
+"theme.auto"            = "跟随系统";
+"theme.paper"           = "纸白";
+"theme.sand"            = "米黄";
+"theme.graphite"        = "石墨";
+"theme.ink"             = "午夜蓝";
+"theme.glass"           = "毛玻璃";
+"theme.auto.detail"     = "浅色/深色自动切换（不透明）";
+"theme.paper.detail"    = "冷白纸面，始终浅色";
+"theme.sand.detail"     = "暖米色便签纸，始终浅色";
+"theme.graphite.detail" = "中性深灰，始终深色";
+"theme.ink.detail"      = "偏蓝的深色，始终深色";
+"theme.glass.detail"    = "半透明毛玻璃，桌面透出来";
+
+/* --- 吸边方向 --- */
+"edge.none"     = "不吸边";
+"edge.left"     = "左边";
+"edge.right"    = "右边";
+"edge.top"      = "上边";
+"edge.bottom"   = "下边";
+
+"tuck.left"     = "收进左边";
+"tuck.right"    = "收进右边";
+"tuck.top"      = "收进上边";
+"tuck.bottom"   = "收进下边";
+"tuck.autoHint" = "（自动隐藏已开，写完停手会自己收）";
+
+/* --- 收起速度 --- */
+"speed.fast"            = "快";
+"speed.normal"          = "标准";
+"speed.slow"            = "慢";
+"speed.fast.detail"     = "鼠标一离开就收（约 0.4 秒）";
+"speed.normal.detail"   = "离开后稍等一下再收（约 0.8 秒）";
+"speed.slow.detail"     = "留足反悔时间（约 1.5 秒）";
+
+/* --- 便签本体 --- */
+"note.untitled"         = "新便签";
+"field.addTodo"         = "＋ 新增待办";
+"field.nextLine"        = "接下来…";
+"empty.hint"            = "点右上角 ＋ 新建一个清单";
+"tabBar.collapse.tip"   = "折叠成一条标签栏";
+"tabBar.newList.tip"    = "新建清单";
+
+/* --- 弹窗 --- */
+"alert.deleteList.title"    = "删除清单「%@」？";
+"alert.delete"              = "删除";
+"alert.cancel"              = "取消";
+"alert.ok"                  = "好";
+"alert.tags.title"          = "标签";
+"alert.tags.body"           = "用逗号分隔，例如：论文, 紧急";
+"alert.loginItem.title"     = "无法自动设置开机启动";
+"alert.loginItem.body"      = "请到「系统设置 → 通用 → 登录项」手动添加 Eaves。\n\n（%@）";
+
+/* --- 首次启动 --- */
+"seed.title"    = "待办";
+"seed.item1"    = "把这个窗口拖到屏幕边缘试试";
+"seed.item2"    = "在这里右键，能打开设置";

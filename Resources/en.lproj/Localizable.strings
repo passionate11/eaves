@@ -1,0 +1,124 @@
+/* Eaves — English (development language).
+ *
+ * Keys are semantic and stable; the values on the right are what people see.
+ * To add a language, copy this file to Resources/<code>.lproj/Localizable.strings,
+ * translate the right-hand side only, and add <code> to CFBundleLocalizations
+ * in build.sh. Copy Localizable.stringsdict too — it holds the one string that
+ * needs plural rules.
+ */
+
+/* --- Menu bar and main menu --- */
+"menu.newList"          = "New List";
+"menu.toggleWindow"     = "Show / Hide Notes";
+"menu.showWindow"       = "Show Notes";
+"menu.hideWindow"       = "Hide Notes";
+"menu.settings"         = "Settings";
+"menu.quit"             = "Quit Eaves";
+"menu.noLists"          = "(No lists yet)";
+"menu.filterByTag"      = "Filter by Tag";
+"menu.launchAtLogin"    = "Launch at Login";
+"menu.revealData"       = "Open Data Folder";
+
+/* --- Edit menu. Titles only; the shortcuts are set in code. --- */
+"menu.edit"             = "Edit";
+"menu.undo"             = "Undo";
+"menu.redo"             = "Redo";
+"menu.cut"              = "Cut";
+"menu.copy"             = "Copy";
+"menu.paste"            = "Paste";
+"menu.pastePlain"       = "Paste as Plain Text";
+"menu.delete"           = "Delete";
+"menu.selectAll"        = "Select All";
+
+/* --- Right-click menu on a tab --- */
+"menu.color"            = "Colour";
+"menu.rename"           = "Rename";
+"menu.tags"             = "Tags…";
+/* %@ is the comma-separated tag list already on the note. */
+"menu.tagsWith"         = "Tags: %@";
+"menu.clearDone"        = "Clear Completed";
+"menu.copyAsText"       = "Copy as Text";
+"menu.deleteList"       = "Delete This List";
+"menu.tuckAway"         = "Tuck Into the Nearest Edge";
+"menu.undock"           = "Put Back on the Desktop";
+
+/* --- Settings --- */
+"settings.floatOnTop"           = "Float on Top";
+"settings.floatOnTop.tip"       = "Stays above other apps, including full-screen ones";
+"settings.appearance"           = "APPEARANCE";
+"settings.dockEdge"             = "DOCK EDGE";
+"settings.dockEdge.blocked.tip" = "Another display sits on this side — tucking away here would walk the note onto it";
+"settings.autoHide"             = "Tuck Away When Done";
+"settings.autoHide.tip"         = "Once docked, retracts when the pointer leaves and typing stops";
+"settings.hideSpeed"            = "RETRACT SPEED";
+
+/* --- Colours --- */
+"color.red"     = "Red";
+"color.orange"  = "Orange";
+"color.yellow"  = "Yellow";
+"color.green"   = "Green";
+"color.blue"    = "Blue";
+"color.purple"  = "Purple";
+"color.gray"    = "Grey";
+
+/* --- Themes --- */
+"theme.auto"            = "Match System";
+"theme.paper"           = "Paper";
+"theme.sand"            = "Sand";
+"theme.graphite"        = "Graphite";
+"theme.ink"             = "Midnight";
+"theme.glass"           = "Glass";
+"theme.auto.detail"     = "Follows light/dark, opaque";
+"theme.paper.detail"    = "Cool white paper, always light";
+"theme.sand.detail"     = "Warm sticky-note beige, always light";
+"theme.graphite.detail" = "Neutral dark grey, always dark";
+"theme.ink.detail"      = "Blue-leaning dark, always dark";
+"theme.glass.detail"    = "Translucent — the desktop shows through";
+
+/* --- Dock edges. Menu labels, so title case. --- */
+"edge.none"     = "Don't Dock";
+"edge.left"     = "Left";
+"edge.right"    = "Right";
+"edge.top"      = "Top";
+"edge.bottom"   = "Bottom";
+
+/* Full sentences rather than "Tuck into the %@ edge": languages that inflect or
+ * capitalise differently cannot fix that construction from the label alone. */
+"tuck.left"     = "Tuck into the left edge";
+"tuck.right"    = "Tuck into the right edge";
+"tuck.top"      = "Tuck into the top edge";
+"tuck.bottom"   = "Tuck into the bottom edge";
+"tuck.autoHint" = " (auto-hide is on — it retracts when you stop typing)";
+
+/* --- Retract speed --- */
+"speed.fast"            = "Fast";
+"speed.normal"          = "Normal";
+"speed.slow"            = "Slow";
+"speed.fast.detail"     = "Retracts as soon as the pointer leaves (~0.4s)";
+"speed.normal.detail"   = "Waits a moment after you leave (~0.8s)";
+"speed.slow.detail"     = "Leaves time to change your mind (~1.5s)";
+
+/* --- The note itself --- */
+"note.untitled"         = "New Note";
+"field.addTodo"         = "＋ Add a to-do";
+"field.nextLine"        = "and then…";
+"empty.hint"            = "Click ＋ in the corner to start a list";
+"tabBar.collapse.tip"   = "Collapse to just the tab strip";
+"tabBar.newList.tip"    = "New list";
+
+/* --- Alerts --- */
+/* %@ is the list's name. */
+"alert.deleteList.title"    = "Delete “%@”?";
+"alert.delete"              = "Delete";
+"alert.cancel"              = "Cancel";
+"alert.ok"                  = "OK";
+"alert.tags.title"          = "Tags";
+"alert.tags.body"           = "Comma-separated, e.g. writing, urgent";
+"alert.loginItem.title"     = "Couldn't set launch at login";
+/* %@ is the system's error message. */
+"alert.loginItem.body"      = "Add Eaves by hand under System Settings → General → Login Items.\n\n(%@)";
+
+/* --- First run. Two rows that teach the two gestures worth knowing. --- */
+"seed.title"    = "To-do";
+"seed.item1"    = "Drag this window to a screen edge";
+"seed.item2"    = "Right-click here for settings";
