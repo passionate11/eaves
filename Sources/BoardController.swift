@@ -171,6 +171,54 @@ final class HairlineView: FlippedView {
     }
 }
 
+/// Empty space that means "start a new to-do": the band the add field sits in,
+/// and whatever is left below the last row.
+///
+/// The add field is one line of text in a much taller footer, and the list
+/// usually ends well above the bottom of the window. Both leave large areas
+/// that look like they should take a click and, until now, did nothing —
+/// so the caret was reachable only by aiming at the placeholder itself.
+final class AddZoneView: FlippedView {
+    var fill: NSColor = .clear { didSet { needsDisplay = true } }
+    /// Painted while the pointer is inside, if `showsHover` is set.
+    var wash: NSColor = .clear
+    /// Only the footer lights up. The blank area under the list is clickable
+    /// too, but washing half the window on hover would be noise, not an
+    /// affordance.
+    var showsHover = false
+    var onClick: (() -> Void)?
+
+    private var hovered = false
+    private var tracking: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        guard showsHover else { return }
+        if let t = tracking { removeTrackingArea(t) }
+        let t = NSTrackingArea(rect: bounds,
+                               options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                               owner: self)
+        addTrackingArea(t)
+        tracking = t
+    }
+
+    override func mouseEntered(with event: NSEvent) { hovered = true; needsDisplay = true }
+    override func mouseExited(with event: NSEvent) { hovered = false; needsDisplay = true }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.makeKeyAndOrderFront(nil)
+        onClick?()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        fill.setFill()
+        bounds.fill()
+        guard showsHover, hovered else { return }
+        wash.setFill()
+        bounds.fill()
+    }
+}
+
 /// Root view of the window. A vibrancy view, so the desktop shows through; it
 /// also owns the hover tracking area that drives the inactive fade.
 final class BoardRootView: NSVisualEffectView {
@@ -214,8 +262,8 @@ final class BoardController: NSObject, NSWindowDelegate {
     private let tabBar = TabBarView()
     private let bar = ProgressBarView()
     private let scroll = NSScrollView()
-    private let rowsHost = FlippedView()
-    private let footerBand = HairlineView()
+    private let rowsHost = AddZoneView()
+    private let footerBand = AddZoneView()
     private let footerLine = HairlineView()
     private let addField = NSTextField()
     private let emptyLabel = plainField("", size: 12)
@@ -297,6 +345,11 @@ final class BoardController: NSObject, NSWindowDelegate {
         addField.placeholderString = L("field.addTodo")
         addField.delegate = self
         addField.cell?.usesSingleLineMode = true
+
+        footerBand.showsHover = true
+        for z in [rowsHost, footerBand] {
+            z.onClick = { [weak self] in self?.beginAdding() }
+        }
 
         emptyLabel.isEditable = false
         emptyLabel.isSelectable = false
@@ -405,7 +458,8 @@ final class BoardController: NSObject, NSWindowDelegate {
 
         card.palette = palette
         // Same surface as the tab strip: chrome top and bottom, list in between.
-        footerBand.color = palette.header
+        footerBand.fill = palette.header
+        footerBand.wash = palette.hover
         footerLine.color = palette.hairline
         bar.track = palette.track
         tabBar.palette = palette
@@ -1343,6 +1397,16 @@ extension BoardController: ItemRowDelegate {
         case .next: r.beginEditingNext(atEnd: true)
         }
         r.scrollToVisible(r.bounds)
+    }
+
+    /// Where every click on empty space ends up. Clicking below the last row
+    /// reads as "I want another one" — the same thing ↓ from the last row
+    /// already does — so it puts the caret in the add field rather than doing
+    /// nothing at all.
+    private func beginAdding() {
+        guard current != nil, !Store.shared.collapsed else { return }
+        noteTyping()
+        window.makeFirstResponder(addField)
     }
 }
 
