@@ -448,6 +448,14 @@ final class ItemRowView: FlippedView {
     private var arrowY: CGFloat = 0
     private var tracking: NSTrackingArea?
 
+    /// Set by the first Backspace on an empty row: the row is offering to remove
+    /// itself, and says so, until the next keystroke either takes it up or calls
+    /// it off. See `control(_:textView:doCommandBy:)`.
+    private var armed = false
+    private var armTimer: Timer?
+
+    deinit { armTimer?.invalidate() }
+
     /// Noticky-style checkbox: a rounded square, empty and hairline-thin until
     /// it is ticked, then filled solid with the note's accent. Drawn rather than
     /// taken from SF Symbols because the corner radius is the whole look.
@@ -590,7 +598,15 @@ final class ItemRowView: FlippedView {
     /// drawn rather than folded into the text so the stored string stays
     /// exactly what the user typed.
     override func draw(_ dirtyRect: NSRect) {
-        if hovered {
+        if armed {
+            // Red rather than the hover grey, because this is the one wash that
+            // means something is about to go away. On an empty row it is the
+            // only thing there is to see, which is the point — one press has to
+            // be visibly different from none.
+            NSColor.systemRed.withAlphaComponent(palette.dark ? 0.30 : 0.15).setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 6, dy: 1),
+                         xRadius: 8, yRadius: 8).fill()
+        } else if hovered {
             palette.hover.setFill()
             NSBezierPath(roundedRect: bounds.insetBy(dx: 6, dy: 1),
                          xRadius: 8, yRadius: 8).fill()
@@ -617,7 +633,32 @@ final class ItemRowView: FlippedView {
     }
 
     override func mouseExited(with event: NSEvent) {
-        hovered = false; del.isHidden = true; needsDisplay = true
+        hovered = false; del.isHidden = !armed; needsDisplay = true
+    }
+
+    /// First Backspace on an empty row. Shows the row is about to go and starts
+    /// the clock on that offer.
+    private func arm() {
+        armTimer?.invalidate()
+        armed = true
+        del.isHidden = false
+        needsDisplay = true
+        // Long enough that the second press is comfortable, short enough that
+        // the offer never outlives the moment that raised it. Coming back to a
+        // row still glowing red from a minute ago would be worse than no
+        // confirmation at all.
+        armTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            self?.disarm()
+        }
+    }
+
+    private func disarm() {
+        guard armed else { return }
+        armTimer?.invalidate()
+        armTimer = nil
+        armed = false
+        del.isHidden = !hovered
+        needsDisplay = true
     }
 
     func beginEditing(atEnd: Bool = false) {
@@ -638,6 +679,7 @@ final class ItemRowView: FlippedView {
 
 extension ItemRowView: NSTextFieldDelegate {
     func controlTextDidChange(_ obj: Notification) {
+        disarm()
         if (obj.object as AnyObject?) === nextField {
             delegate?.rowNextChanged(itemID, nextField.stringValue)
         } else {
@@ -646,6 +688,9 @@ extension ItemRowView: NSTextFieldDelegate {
     }
 
     func controlTextDidEndEditing(_ obj: Notification) {
+        // Losing focus calls off a pending removal too — an armed row the caret
+        // has left is just a red row nobody asked for.
+        disarm()
         // An untouched next line is not a line — drop it rather than leaving an
         // empty ↳ behind.
         if (obj.object as AnyObject?) === nextField,
@@ -670,6 +715,11 @@ extension ItemRowView: NSTextFieldDelegate {
     func control(_ control: NSControl, textView: NSTextView,
                  doCommandBy selector: Selector) -> Bool {
         let inNext = control === nextField
+        // Anything that is not another Backspace calls the offer off. Two
+        // presses has to mean two *consecutive* presses, or the row could be
+        // armed, left alone while the caret went elsewhere, and then taken by a
+        // Backspace that meant something else entirely.
+        if selector != #selector(NSResponder.deleteBackward(_:)) { disarm() }
         switch selector {
         case #selector(NSResponder.insertNewline(_:)):
             delegate?.rowInsertAfter(itemID)
@@ -697,12 +747,21 @@ extension ItemRowView: NSTextFieldDelegate {
             // Backspace on an empty field means "take this line back" — there is
             // nothing to its left to delete, and a stray Return is the usual way
             // to end up here. A field with any text in it is left alone.
-            guard textView.string.isEmpty else { return false }
+            guard textView.string.isEmpty else { disarm(); return false }
+            // The ↳ line goes on one press: it holds nothing, it was opened a
+            // moment ago with Tab, and Esc already drops it the same way.
             if inNext {
+                disarm()
                 delegate?.rowCancelNext(itemID)
-            } else {
-                delegate?.rowDeleteEmpty(itemID)
+                return true
             }
+            // The row itself takes two. Backspace is a reflex at the start of a
+            // line, and a row vanishing under the caret on the first press is
+            // startling even when nothing was written in it. The first press
+            // only offers — the row turns red and waits.
+            guard armed else { arm(); return true }
+            disarm()
+            delegate?.rowDeleteEmpty(itemID)
             return true
         case #selector(NSResponder.moveUp(_:)):
             guard caretAtEdgeLine(textView, top: true) else { return false }
