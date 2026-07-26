@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="docs/icon-512.png" width="128" alt="DeskNote">
+<img src="docs/icon-512.png" width="128" alt="Eaves">
 
-# DeskNote
+# Eaves · 檐
 
-**贴在桌面上的清单便签，用完就自己收起来。**
+**悬在屏幕边上的清单便签，不看的时候自己收进去。**
 
 [English](README.md) · [赞助](docs/DONATE.md)
 
@@ -25,7 +25,7 @@
 鼠标扫一下窄边又滑出来。
 
 不需要注册，不联网，不同步。所有数据就是
-`~/Library/Application Support/DeskNote/` 下的两个 JSON 文件。
+`~/Library/Application Support/Eaves/` 下的两个 JSON 文件。
 
 ## 为什么会有它
 
@@ -36,6 +36,8 @@
 
 所以它是刻意做小的。没有项目层级，没有截止日期，没有重复任务，没有通知。
 就是几份清单和一个勾。
+
+名字取自屋檐 —— 待在房子的边界上，住久了就不会再注意到它。
 
 ## 功能
 
@@ -58,20 +60,20 @@
 
 ## 安装
 
-没有提供打包好的下载版。DeskNote 没有做苹果公证（notarize），下载来的 `.app`
+没有提供打包好的下载版。Eaves 没有做苹果公证（notarize），下载来的 `.app`
 会被 Gatekeeper 拦下来 —— 自己编译反而是最省事的路子。大概一分钟，不需要装
 Xcode，只要命令行工具。
 
 ```sh
 xcode-select --install        # 如果还没装过
-git clone https://github.com/passionate11/DeskNote.git
-cd DeskNote
+git clone https://github.com/passionate11/eaves.git
+cd eaves
 ./build.sh release
-open DeskNote.app
+open Eaves.app
 ```
 
 `./build.sh release` 出的是通用二进制（`arm64` + `x86_64`），带 ad-hoc 签名。
-想长期用就把 `DeskNote.app` 拖进 `/Applications`。
+想长期用就把 `Eaves.app` 拖进 `/Applications`。
 不带参数的 `./build.sh` 只编译当前架构且不优化，改代码时快一些。
 
 需要 macOS 13 及以上。
@@ -103,7 +105,7 @@ open DeskNote.app
 ## 数据
 
 ```
-~/Library/Application Support/DeskNote/
+~/Library/Application Support/Eaves/
 ├── notes.json      你的清单
 └── settings.json   窗口位置、主题、吸边方向
 ```
@@ -115,7 +117,7 @@ open DeskNote.app
 
 - **界面只有中文。** 97 处文案是写死在代码里的。除此之外结构上没有障碍 ——
   把它们抽到 `Localizable.strings` 是个边界很清楚的入门任务，
-  [欢迎来提 PR](https://github.com/passionate11/DeskNote/issues)。
+  [欢迎来提 PR](https://github.com/passionate11/eaves/issues)。
 - **只有一个窗口。** 多份清单是同一个窗口里的标签页，没法两张便签同时摊在桌面上。
 - **不同步、没有手机端、没有提醒。** 这是故意的。
 
@@ -138,7 +140,7 @@ open DeskNote.app
 
 ## 赞助
 
-DeskNote 是免费的，MIT 协议，以后也不会变。
+Eaves 是免费的，MIT 协议，以后也不会变。
 如果它值一杯咖啡，[这里有收款码](docs/DONATE.md) ——
 不过点个 star 或者提一个写得清楚的 issue，其实比钱有用。
 

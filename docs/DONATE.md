@@ -1,13 +1,13 @@
-# Support DeskNote · 赞助
+# Support Eaves · 赞助
 
-DeskNote is free and MIT-licensed. It will stay that way — there is no paid
+Eaves is free and MIT-licensed. It will stay that way — there is no paid
 tier, no license key, and nothing behind a wall.
 
 If it saved you the price of a sticky-note app, you're welcome to buy me a
 coffee. Entirely optional, and it buys no special treatment: bug reports and
 pull requests are read in the same order either way.
 
-DeskNote 是免费的，MIT 协议，以后也不会有收费版或者license。
+Eaves 是免费的，MIT 协议，以后也不会有收费版或者license。
 如果它替你省下了一个便签软件的钱，可以请我喝杯咖啡 —— 完全随意。
 赞助不会换来任何优待，issue 和 PR 一视同仁按顺序看。
 

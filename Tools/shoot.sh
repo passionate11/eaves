@@ -1,5 +1,5 @@
 #!/bin/bash
-# Captures README screenshots of DeskNote, one per theme.
+# Captures README screenshots of Eaves, one per theme.
 #
 #   ./Tools/shoot.sh            all themes into docs/
 #   ./Tools/shoot.sh sand ink   just those two
@@ -11,7 +11,7 @@
 #  * It parks the window on a Retina screen first. A 1x capture of a 380pt
 #    window is 380px wide and looks soft in a README on any modern display.
 #
-# It edits ~/Library/Application Support/DeskNote/{settings,notes}.json and
+# It edits ~/Library/Application Support/Eaves/{settings,notes}.json and
 # restarts the app between shots, so it backs both up and restores them on the
 # way out — including on Ctrl-C.
 set -euo pipefail
@@ -19,8 +19,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 source Tools/vfs-overlay.sh
 
-APP_PATH="${DESKNOTE_APP:-/Applications/DeskNote.app}"
-SUPPORT="$HOME/Library/Application Support/DeskNote"
+APP_PATH="${EAVES_APP:-/Applications/Eaves.app}"
+SUPPORT="$HOME/Library/Application Support/Eaves"
 OUT=docs
 THEMES=("$@")
 [ "${#THEMES[@]}" -eq 0 ] && THEMES=(sand ink glass)
@@ -82,15 +82,15 @@ PY
   # catches it mid-fade and produces a washed-out capture.
   sleep 3
 
-  # Hand focus to Finder first. Left alone, DeskNote restores focus to the
+  # Hand focus to Finder first. Left alone, Eaves restores focus to the
   # first row's field editor on launch, and the shot comes out with a blue
   # selection highlight sitting on the first todo.
   osascript -e 'tell application "Finder" to activate' >/dev/null 2>&1 || true
   sleep 1.2
 
-  id=$(.build/window-id DeskNote | head -1 | cut -d' ' -f1)
+  id=$(.build/window-id Eaves | head -1 | cut -d' ' -f1)
   if [ -z "$id" ]; then
-    echo "!! no DeskNote window found for theme $theme" >&2
+    echo "!! no Eaves window found for theme $theme" >&2
     continue
   fi
   screencapture -x -o -l "$id" "$OUT/screenshot-$theme.png"

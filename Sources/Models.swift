@@ -337,7 +337,7 @@ final class Store {
     private let dir: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory,
                                             in: .userDomainMask)[0]
-        return base.appendingPathComponent("DeskNote", isDirectory: true)
+        return base.appendingPathComponent("Eaves", isDirectory: true)
     }()
 
     private var fileURL: URL { dir.appendingPathComponent("notes.json") }

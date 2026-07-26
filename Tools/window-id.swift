@@ -1,12 +1,12 @@
 #!/usr/bin/env swift
 // Prints "<windowID> <width>x<height>" for each on-screen window owned by the
-// named application. Used by Tools/shoot.sh to capture DeskNote by window ID
+// named application. Used by Tools/shoot.sh to capture Eaves by window ID
 // rather than by screen region, so README screenshots come out clean no matter
 // what else happens to be on the desktop.
 import CoreGraphics
 import Foundation
 
-let target = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "DeskNote"
+let target = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "Eaves"
 guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly,
                                              .excludeDesktopElements], kCGNullWindowID)
         as? [[String: Any]] else { exit(1) }

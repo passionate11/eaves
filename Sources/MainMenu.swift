@@ -4,7 +4,7 @@ import AppKit
 
 /// Builds the application's main menu.
 ///
-/// DeskNote is an `LSUIElement` app, so this menu is never *drawn* anywhere —
+/// Eaves is an `LSUIElement` app, so this menu is never *drawn* anywhere —
 /// there is no menu bar to draw it in. It is installed purely because the main
 /// menu is the table AppKit consults to resolve key equivalents: `NSApplication`
 /// offers every ⌘-chord to `mainMenu.performKeyEquivalent(with:)` before the
@@ -26,7 +26,7 @@ enum MainMenu {
 
     private static func appItem(target: AppDelegate) -> NSMenuItem {
         let item = NSMenuItem()
-        let menu = NSMenu(title: "DeskNote")
+        let menu = NSMenu(title: "Eaves")
 
         let new = NSMenuItem(title: "新建清单", action: #selector(AppDelegate.newNote),
                              keyEquivalent: "n")
@@ -43,7 +43,7 @@ enum MainMenu {
 
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "退出 DeskNote", action: #selector(AppDelegate.quit),
+        let quit = NSMenuItem(title: "退出 Eaves", action: #selector(AppDelegate.quit),
                               keyEquivalent: "q")
         quit.target = target
         menu.addItem(quit)

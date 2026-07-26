@@ -1,6 +1,6 @@
 # Build products
 .build/
-DeskNote.app/
+Eaves.app/
 dist/
 
 # macOS

@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="docs/icon-512.png" width="128" alt="DeskNote">
+<img src="docs/icon-512.png" width="128" alt="Eaves">
 
-# DeskNote
+# Eaves · 檐
 
-**A sticky-note checklist that lives on your desktop and gets out of the way.**
+**A checklist that hangs at the edge of your screen, then tucks itself out of sight.**
 
 [中文说明](README.zh-CN.md) · [Support the project](docs/DONATE.md)
 
@@ -12,7 +12,7 @@
 ![Universal](https://img.shields.io/badge/binary-Intel%20%2B%20Apple%20Silicon-black)
 ![MIT](https://img.shields.io/badge/license-MIT-black)
 
-<img src="docs/screenshot-sand.png" width="380" alt="DeskNote in the sand theme">
+<img src="docs/screenshot-sand.png" width="380" alt="Eaves in the sand theme">
 
 </div>
 
@@ -27,7 +27,7 @@ itself away into a thin sliver — brush the sliver with the cursor and it slide
 back out.
 
 No account, no sync, no cloud. Everything is two JSON files in
-`~/Library/Application Support/DeskNote/`.
+`~/Library/Application Support/Eaves/`.
 
 ## Why it exists
 
@@ -38,6 +38,9 @@ I work, never in the way when I don't need it, and gone in one gesture.
 
 So this is deliberately small. There is no project hierarchy, no due dates, no
 recurring tasks, no notifications. Three lists and a checkbox.
+
+The name is the overhang at the edge of a roof — the thing that sits right on
+the border of the building, that you stop noticing once you live under it.
 
 ## Features
 
@@ -64,21 +67,21 @@ recurring tasks, no notifications. Three lists and a checkbox.
 
 ## Install
 
-There is no signed release build. DeskNote is not notarized by Apple, which
+There is no signed release build. Eaves is not notarized by Apple, which
 means a downloaded `.app` would be blocked by Gatekeeper anyway — building it
 yourself is both the honest option and the easy one. It takes about a minute
 and needs no Xcode, only the Command Line Tools.
 
 ```sh
 xcode-select --install        # if you don't already have them
-git clone https://github.com/passionate11/DeskNote.git
-cd DeskNote
+git clone https://github.com/passionate11/eaves.git
+cd eaves
 ./build.sh release
-open DeskNote.app
+open Eaves.app
 ```
 
 `./build.sh release` produces a universal binary (`arm64` + `x86_64`),
-ad-hoc signed. Drag `DeskNote.app` into `/Applications` if you want to keep it.
+ad-hoc signed. Drag `Eaves.app` into `/Applications` if you want to keep it.
 `./build.sh` with no argument builds an unoptimized binary for your own
 architecture, which is faster to iterate on.
 
@@ -112,7 +115,7 @@ and leaves a sliver. To undock, drag it back out, or right-click → 放回桌�
 ## Data
 
 ```
-~/Library/Application Support/DeskNote/
+~/Library/Application Support/Eaves/
 ├── notes.json      your lists
 └── settings.json   window position, theme, dock edge
 ```
@@ -125,7 +128,7 @@ sync and there never will be.
 
 - **The UI is Chinese-only.** All 97 strings are hardcoded. The code is
   otherwise ready for it — pulling them into a `Localizable.strings` is a
-  well-scoped first contribution, and [issues are open](https://github.com/passionate11/DeskNote/issues).
+  well-scoped first contribution, and [issues are open](https://github.com/passionate11/eaves/issues).
 - **One window.** Multiple lists live as tabs in a single window; you can't
   have two notes on screen at once.
 - **No sync, no mobile app, no reminders.** By design.
@@ -151,7 +154,7 @@ came from.
 
 ## Support
 
-DeskNote is free and MIT-licensed, and stays that way. If it earned a coffee,
+Eaves is free and MIT-licensed, and stays that way. If it earned a coffee,
 there's a [donation page](docs/DONATE.md) with WeChat and Alipay codes — but a
 star or a good bug report is worth more.
 

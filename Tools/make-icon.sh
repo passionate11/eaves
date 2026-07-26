@@ -1,5 +1,5 @@
 #!/bin/bash
-# Renders Tools/make-icon.swift into DeskNote.app's AppIcon.icns.
+# Renders Tools/make-icon.swift into Eaves.app's AppIcon.icns.
 #
 # Separate from build.sh because the icon changes roughly never, and rendering
 # ten bitmaps plus an iconutil pass on every build would be pure overhead.

@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let btn = statusItem.button {
             let cfg = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-            btn.image = NSImage(systemSymbolName: "checklist", accessibilityDescription: "DeskNote")?
+            btn.image = NSImage(systemSymbolName: "checklist", accessibilityDescription: "Eaves")?
                 .withSymbolConfiguration(cfg)
         }
         statusItem.menu = NSMenu()
@@ -115,14 +115,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             let a = NSAlert()
             a.messageText = "无法自动设置开机启动"
-            a.informativeText = "请到「系统设置 → 通用 → 登录项」手动添加 DeskNote。\n\n（\(error.localizedDescription)）"
+            a.informativeText = "请到「系统设置 → 通用 → 登录项」手动添加 Eaves。\n\n（\(error.localizedDescription)）"
             a.runModal()
         }
     }
 
     @objc private func revealData() {
         let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("DeskNote")
+            .appendingPathComponent("Eaves")
         NSWorkspace.shared.selectFile(url.appendingPathComponent("notes.json").path,
                                       inFileViewerRootedAtPath: url.path)
     }
@@ -198,7 +198,7 @@ extension AppDelegate: NSMenuDelegate {
         login.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
         add(menu, "打开数据文件夹", #selector(revealData))
         menu.addItem(.separator())
-        add(menu, "退出 DeskNote", #selector(quit), key: "q")
+        add(menu, "退出 Eaves", #selector(quit), key: "q")
     }
 
     @discardableResult

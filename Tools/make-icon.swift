@@ -1,5 +1,5 @@
 #!/usr/bin/env swift
-// Draws DeskNote's app icon and writes AppIcon.icns.
+// Draws Eaves's app icon and writes AppIcon.icns.
 //
 // Committed as source rather than as a binary blob: the icon is ~80 lines of
 // AppKit drawing, and keeping it that way means the palette can follow the

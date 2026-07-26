@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds DeskNote.app with Command Line Tools only — no Xcode, no project file.
+# Builds Eaves.app with Command Line Tools only — no Xcode, no project file.
 #
 #   ./build.sh            fast debug build, native arch only
 #   ./build.sh release    optimised universal binary (arm64 + x86_64)
@@ -9,8 +9,8 @@
 set -euo pipefail
 
 cd "$(dirname "$0")"
-APP="DeskNote.app"
-BIN="$APP/Contents/MacOS/DeskNote"
+APP="Eaves.app"
+BIN="$APP/Contents/MacOS/Eaves"
 DEPLOY_TARGET=13.0
 
 source Tools/vfs-overlay.sh
@@ -40,11 +40,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key>              <string>DeskNote</string>
-  <key>CFBundleDisplayName</key>       <string>DeskNote</string>
-  <key>CFBundleExecutable</key>        <string>DeskNote</string>
+  <key>CFBundleName</key>              <string>Eaves</string>
+  <key>CFBundleDisplayName</key>       <string>Eaves</string>
+  <key>CFBundleExecutable</key>        <string>Eaves</string>
   <key>CFBundleIconFile</key>          <string>AppIcon</string>
-  <key>CFBundleIdentifier</key>        <string>com.hpc.desknote</string>
+  <key>CFBundleIdentifier</key>        <string>com.hpc.eaves</string>
   <key>CFBundlePackageType</key>       <string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>CFBundleVersion</key>           <string>1</string>
@@ -60,7 +60,7 @@ PLIST
 mkdir -p .build/slices
 SLICES=()
 for arch in "${ARCHS[@]}"; do
-  out=".build/slices/DeskNote-$arch"
+  out=".build/slices/Eaves-$arch"
   swiftc "${SWIFT_OPT[@]}" \
     "${VFS_ARGS[@]}" \
     -target "${arch}-apple-macosx${DEPLOY_TARGET}" \
@@ -77,8 +77,7 @@ fi
 
 # Ad-hoc signature. Enough for the app to run on the machine that built it,
 # which is what building from source means. Distributing a prebuilt .app to
-# other people needs a Developer ID certificate and notarization instead —
-# see docs/DISTRIBUTION.md.
-codesign --force --sign - --identifier com.hpc.desknote "$APP"
+# other people needs a Developer ID certificate and notarization instead.
+codesign --force --sign - --identifier com.hpc.eaves "$APP"
 
 echo "built: $(pwd)/$APP  [$(lipo -archs "$BIN")]"
