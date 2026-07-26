@@ -6,7 +6,7 @@
 
 **悬在屏幕边上的清单便签，不看的时候自己收进去。**
 
-[English](README.md) · [赞助](docs/DONATE.md)
+[English](README.md)
 
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black)
 ![Universal](https://img.shields.io/badge/binary-Intel%20%2B%20Apple%20Silicon-black)
@@ -138,11 +138,13 @@ open Eaves.app
 欢迎 PR。注释写的基本都是「为什么这么写」而不是「这行在干嘛」 ——
 看到哪段代码觉得别扭，上面的注释多半写了它是为了绕开哪个坑。
 
-## 赞助
+## 想帮忙的话
 
-Eaves 是免费的，MIT 协议，以后也不会变。
-如果它值一杯咖啡，[这里有收款码](docs/DONATE.md) ——
-不过点个 star 或者提一个写得清楚的 issue，其实比钱有用。
+不收捐款，没有 sponsor 按钮，也不会有收费版。三件真的有用的事：
+
+- **点个 star。** 这么小的工具，最缺的就是被看见。
+- **提 issue**，带上 macOS 版本和出问题时你在干嘛。
+- **说说缺什么功能。** 这比什么都影响后续怎么做。
 
 ## 许可
 

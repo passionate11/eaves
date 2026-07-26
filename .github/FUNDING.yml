@@ -1,7 +1,0 @@
-# The Sponsor button on the repo page.
-#
-# GitHub Sponsors is not listed here on purpose: it settles through Stripe, and
-# Stripe does not onboard individuals in mainland China. The custom link points
-# at a page in this repo instead, which needs no platform account and takes no
-# cut.
-custom: ['https://github.com/passionate11/eaves/blob/main/docs/DONATE.md']

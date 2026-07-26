@@ -6,7 +6,7 @@
 
 **A checklist that hangs at the edge of your screen, then tucks itself out of sight.**
 
-[中文说明](README.zh-CN.md) · [Support the project](docs/DONATE.md)
+[中文说明](README.zh-CN.md)
 
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black)
 ![Universal](https://img.shields.io/badge/binary-Intel%20%2B%20Apple%20Silicon-black)
@@ -152,11 +152,15 @@ Pull requests welcome. The code is commented at the level of *why*, not *what* �
 if something looks strange, the comment above it probably explains which bug it
 came from.
 
-## Support
+## Helping out
 
-Eaves is free and MIT-licensed, and stays that way. If it earned a coffee,
-there's a [donation page](docs/DONATE.md) with WeChat and Alipay codes — but a
-star or a good bug report is worth more.
+No donations, no sponsor button, no paid tier — Eaves is MIT and stays that
+way. Three things that actually help:
+
+- **Star the repo.** Visibility is the whole game for a tool this small.
+- **File a bug** with your macOS version and what you were doing when it broke.
+- **Tell me what's missing.** Feature requests shape this more than anything
+  else does.
 
 ## License
 
