@@ -1283,6 +1283,33 @@ extension BoardController: ItemRowDelegate {
         focus(rowAt: rows.firstIndex { $0.itemID == new.id } ?? 0, field: .main)
     }
 
+    /// Backspace in an empty item. Almost always a stray Return a moment ago, so
+    /// this reads as an undo of that Return rather than as a deletion: the row
+    /// goes away and the caret lands at the end of the line above, exactly where
+    /// it was before.
+    ///
+    /// The next line has to be empty too. An item can have a follow-up typed into
+    /// its ↳ field while its own text is still blank, and removing the row would
+    /// take that with it — silently, since the caret is nowhere near it.
+    func rowDeleteEmpty(_ id: UUID) {
+        noteTyping()
+        guard let items = current?.items,
+              let i = items.firstIndex(where: { $0.id == id }),
+              items[i].text.isEmpty,
+              items[i].nextText.isEmpty else { return }
+
+        commit { $0.items.removeAll { $0.id == id } }
+        reload()
+
+        // Where ↑ would have gone from here, so the two keys agree.
+        guard i > 0 else {
+            if rows.isEmpty { window.makeFirstResponder(addField) } else { focus(rowAt: 0, field: .main) }
+            return
+        }
+        let above = current?.items[i - 1]
+        focus(rowAt: i - 1, field: (above?.hasNext ?? false) ? .next : .main)
+    }
+
     /// ↑/↓ walks the whole list as one column: item → its next line → the next
     /// item, and off the bottom into the add-field.
     func rowMoveFocus(from id: UUID, in field: RowField, up: Bool) {

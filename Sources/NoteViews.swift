@@ -404,6 +404,10 @@ protocol ItemRowDelegate: AnyObject {
     /// Esc in the next line: back out of it. An empty line is dropped entirely,
     /// so an accidental Tab leaves nothing behind.
     func rowCancelNext(_ id: UUID)
+    /// Backspace with the caret at the start of an empty item. Removes the item
+    /// and hands the caret back to the one above, so the keystroke undoes the
+    /// Return that created it.
+    func rowDeleteEmpty(_ id: UUID)
     /// ↑/↓ pressed with the caret already at the top/bottom line of a field:
     /// move the caret to the neighbouring row instead.
     func rowMoveFocus(from id: UUID, in field: RowField, up: Bool)
@@ -687,6 +691,17 @@ extension ItemRowView: NSTextFieldDelegate {
                 delegate?.rowCancelNext(itemID)
             } else {
                 window?.makeFirstResponder(nil)
+            }
+            return true
+        case #selector(NSResponder.deleteBackward(_:)):
+            // Backspace on an empty field means "take this line back" — there is
+            // nothing to its left to delete, and a stray Return is the usual way
+            // to end up here. A field with any text in it is left alone.
+            guard textView.string.isEmpty else { return false }
+            if inNext {
+                delegate?.rowCancelNext(itemID)
+            } else {
+                delegate?.rowDeleteEmpty(itemID)
             }
             return true
         case #selector(NSResponder.moveUp(_:)):
