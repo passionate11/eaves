@@ -1,0 +1,12 @@
+# Build products
+.build/
+DeskNote.app/
+dist/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+*.xcworkspace
+xcuserdata/
