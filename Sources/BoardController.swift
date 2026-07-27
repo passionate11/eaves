@@ -276,6 +276,16 @@ final class BoardController: NSObject, NSWindowDelegate {
     private var mouseInside = false
     private(set) var isRetracted = false
 
+    /// Live state of a row drag: which row is in the air, and where it would
+    /// land if it were let go now. Nothing is written to the note until then —
+    /// a drag that is abandoned by dropping a row back where it started must
+    /// leave no trace, and reordering the model on every mouse-moved event
+    /// would rebuild the rows out from under the gesture.
+    private var dragRow: ItemRowView?
+    private var dragFrom = 0
+    private var dragTo = 0
+    private var dragY: CGFloat = 0
+
     /// When the pointer was last seen off the window, and when the user last
     /// typed. Auto-hide reads both: leaving is the trigger, typing is the veto.
     private var pointerLeftAt: Date?
@@ -543,12 +553,27 @@ final class BoardController: NSObject, NSWindowDelegate {
         let listH = max(0, h - top - M.footer)
         scroll.frame = NSRect(x: 0, y: top, width: w, height: listH)
 
+        let items = current?.items ?? []
         var y: CGFloat = 6
-        for (r, item) in zip(rows, current?.items ?? []) {
+        // `slot` counts the rows that stay put, which is the list the dragged
+        // row will be inserted back into — so it is what `dragTo` indexes.
+        var slot = 0
+        let liftedH = dragRow?.frame.height ?? 0
+        for (r, item) in zip(rows, items) {
             let rh = ItemRowView.height(for: item, width: w)
+            // The row in the air follows the cursor; the rest close up behind it
+            // and open a gap of exactly its height at the target index, so the
+            // list shows where it would land rather than only what it left.
+            if r === dragRow {
+                r.frame = NSRect(x: 0, y: dragY, width: w, height: rh)
+                continue
+            }
+            if slot == dragTo { y += liftedH }
             r.frame = NSRect(x: 0, y: y, width: w, height: rh)
             y += rh
+            slot += 1
         }
+        if dragRow != nil, dragTo >= slot { y += liftedH }
         rowsHost.frame = NSRect(x: 0, y: 0, width: w, height: max(listH, y + 6))
 
         footerLine.frame = NSRect(x: 0, y: h - M.footer, width: w, height: 1)
@@ -1385,6 +1410,71 @@ extension BoardController: ItemRowDelegate {
                 window.makeFirstResponder(addField)
             }
         }
+    }
+
+    // MARK: Reordering
+
+    func rowDragBegan(_ id: UUID, grabOffset: CGFloat) {
+        guard let i = rows.firstIndex(where: { $0.itemID == id }) else { return }
+        noteTyping()
+        // A caret left in the row being dragged would keep the field editor
+        // attached to a view that is about to be replaced on drop.
+        window.makeFirstResponder(nil)
+        dragRow = rows[i]
+        dragRow?.lifted = true
+        dragFrom = i
+        dragTo = i
+        dragY = rows[i].frame.minY
+        rowsHost.addSubview(rows[i], positioned: .above, relativeTo: nil)
+    }
+
+    func rowDragMoved(to y: CGFloat) {
+        guard let d = dragRow else { return }
+        noteTyping()
+        dragY = y
+        // Where the row would land, measured against the list as it would look
+        // with the gap closed up. Reading the rows' live frames instead would
+        // feed the gap back into its own input — the gap shifts the frames,
+        // the shifted frames pick a different target, and the list flickers
+        // between two of them while the cursor stands still.
+        //
+        // Comparing middles rather than edges is what makes the swap happen
+        // when the two rows are visibly half-overlapped.
+        let mid = y + d.frame.height / 2
+        var to = 0
+        var top: CGFloat = 6
+        for (slot, r) in rows.filter({ $0 !== d }).enumerated() {
+            if mid > top + r.frame.height / 2 { to = slot + 1 }
+            top += r.frame.height
+        }
+        guard to != dragTo else { return }
+        dragTo = to
+        // Animated so the rows glide aside instead of teleporting; the dragged
+        // row is excluded, since it is already pinned to the cursor.
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.12
+            ctx.allowsImplicitAnimation = true
+            layoutContents()
+        }
+    }
+
+    func rowDragEnded() {
+        guard let d = dragRow else { return }
+        d.lifted = false
+        let from = dragFrom, to = dragTo
+        dragRow = nil
+        guard from != to else {
+            // Dropped where it started. Nothing to write; just let the row
+            // settle back into its slot.
+            layoutContents()
+            return
+        }
+        commit {
+            guard $0.items.indices.contains(from) else { return }
+            let item = $0.items.remove(at: from)
+            $0.items.insert(item, at: min(to, $0.items.count))
+        }
+        reload()
     }
 
     /// Moves the caret into a row and scrolls it into view. Always lands at the

@@ -107,6 +107,18 @@ func roundedMaskImage(radius: CGFloat) -> NSImage {
     return img
 }
 
+extension NSShadow {
+    /// A plain drop shadow. `dy` is in the drawing view's own direction, so a
+    /// negative value falls downward inside a flipped view.
+    static func drop(radius: CGFloat, alpha: CGFloat, dy: CGFloat) -> NSShadow {
+        let s = NSShadow()
+        s.shadowBlurRadius = radius
+        s.shadowOffset = NSSize(width: 0, height: dy)
+        s.shadowColor = NSColor.black.withAlphaComponent(alpha)
+        return s
+    }
+}
+
 func symbolButton(_ name: String, size: CGFloat = 11,
                   target: AnyObject?, action: Selector) -> NSButton {
     let b = NSButton()

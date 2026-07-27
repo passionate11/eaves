@@ -455,6 +455,12 @@ protocol ItemRowDelegate: AnyObject {
     /// ↑/↓ pressed with the caret already at the top/bottom line of a field:
     /// move the caret to the neighbouring row instead.
     func rowMoveFocus(from id: UUID, in field: RowField, up: Bool)
+    /// A drag started in the row's left column. `grabOffset` is how far down the
+    /// row the cursor was, so the row keeps the same grip while it moves.
+    func rowDragBegan(_ id: UUID, grabOffset: CGFloat)
+    /// `y` is the new top of the dragged row, in the list's coordinates.
+    func rowDragMoved(to y: CGFloat)
+    func rowDragEnded()
 }
 
 func measuredHeight(_ text: String, font: NSFont, width: CGFloat) -> CGFloat {
@@ -497,6 +503,10 @@ final class ItemRowView: FlippedView {
     /// it off. See `control(_:textView:doCommandBy:)`.
     private var armed = false
     private var armTimer: Timer?
+
+    /// Set while this row is the one being dragged, so it draws lifted and the
+    /// hover wash stays out of the way.
+    var lifted = false { didSet { needsDisplay = true } }
 
     deinit { armTimer?.invalidate() }
 
@@ -642,7 +652,20 @@ final class ItemRowView: FlippedView {
     /// drawn rather than folded into the text so the stored string stays
     /// exactly what the user typed.
     override func draw(_ dirtyRect: NSRect) {
-        if armed {
+        if lifted {
+            // A real surface, not a wash: while it moves, the row has to look
+            // like it came off the page rather than like a highlighted line.
+            let r = bounds.insetBy(dx: 6, dy: 1)
+            let path = NSBezierPath(roundedRect: r, xRadius: 8, yRadius: 8)
+            NSGraphicsContext.saveGraphicsState()
+            NSShadow.drop(radius: 7, alpha: palette.dark ? 0.55 : 0.22, dy: -2).set()
+            palette.activeTab.setFill()
+            path.fill()
+            NSGraphicsContext.restoreGraphicsState()
+            palette.hairline.setStroke()
+            path.lineWidth = 1
+            path.stroke()
+        } else if armed {
             // Red rather than the hover grey, because this is the one wash that
             // means something is about to go away. On an empty row it is the
             // only thing there is to see, which is the point — one press has to
@@ -655,6 +678,23 @@ final class ItemRowView: FlippedView {
             NSBezierPath(roundedRect: bounds.insetBy(dx: 6, dy: 1),
                          xRadius: 8, yRadius: 8).fill()
         }
+
+        // The grip: two short rules in the margin, on hover only. Enough to say
+        // the strip is grabbable without adding a permanent column of dots to
+        // every row in the list.
+        if hovered || lifted {
+            NSColor.tertiaryLabelColor.withAlphaComponent(0.55).setStroke()
+            let p = NSBezierPath()
+            let x = M.pad - 6.5
+            for dy in [-2.5, 2.5] as [CGFloat] {
+                p.move(to: NSPoint(x: x, y: M.rowPad + 8 + dy))
+                p.line(to: NSPoint(x: x + 5, y: M.rowPad + 8 + dy))
+            }
+            p.lineWidth = 1.2
+            p.lineCapStyle = .round
+            p.stroke()
+        }
+
         guard showsNext else { return }
         ("↳" as NSString).draw(
             at: NSPoint(x: M.pad + ItemRowView.checkboxW + 1, y: arrowY),
@@ -678,6 +718,51 @@ final class ItemRowView: FlippedView {
 
     override func mouseExited(with event: NSEvent) {
         hovered = false; del.isHidden = !armed; needsDisplay = true
+    }
+
+    override func resetCursorRects() {
+        // Only over the grip. The rest of the row is text, and an open hand over
+        // text would promise a drag that will not start there.
+        addCursorRect(NSRect(x: 0, y: 0, width: M.pad, height: bounds.height),
+                      cursor: .openHand)
+    }
+
+    /// Rows are reordered by dragging the strip to the left of the checkbox.
+    ///
+    /// It is the only part of the row that is not already spoken for: the text
+    /// field needs the press to place a caret, and the checkbox needs it to
+    /// tick. Everything that reaches here is therefore a press on that strip —
+    /// AppKit gives the subviews first refusal — so nothing has to be tested
+    /// for position, only for whether the pointer goes on to move.
+    override func mouseDown(with event: NSEvent) {
+        window?.makeKeyAndOrderFront(nil)
+        let start = event.locationInWindow
+        let grab = convert(start, from: nil).y
+        var dragging = false
+
+        // A local event loop rather than mouseDragged/mouseUp overrides: the
+        // rows underneath are rebuilt as the order changes, and a half-finished
+        // gesture spread over three callbacks on a view that may be replaced
+        // mid-drag is far easier to get wrong.
+        while let e = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
+            if e.type == .leftMouseUp { break }
+            let p = e.locationInWindow
+            if !dragging {
+                // Below AppKit's own drag threshold this is still a click, and a
+                // click on the strip should do nothing at all.
+                guard abs(p.y - start.y) > 3 || abs(p.x - start.x) > 3 else { continue }
+                dragging = true
+                NSCursor.closedHand.push()
+                delegate?.rowDragBegan(itemID, grabOffset: grab)
+            }
+            guard let host = superview else { continue }
+            delegate?.rowDragMoved(to: host.convert(p, from: nil).y - grab)
+        }
+
+        if dragging {
+            NSCursor.pop()
+            delegate?.rowDragEnded()
+        }
     }
 
     /// First Backspace on an empty row. Shows the row is about to go and starts
