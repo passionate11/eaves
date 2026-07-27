@@ -147,11 +147,35 @@ final class CardView: FlippedView {
         let r = M.corner - 0.5
         let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
                                 xRadius: r, yRadius: r)
-        // A hair of vertical gradient rather than a flat fill: the top reads as
-        // catching the light, which is what keeps a flat panel from looking like
-        // a grey rectangle.
+        // A vertical gradient rather than a flat fill: the top reads as
+        // catching the light, which is what keeps a flat panel from looking
+        // like a rectangle of paint.
+        //
+        // `angle: 90`, not -90, because this view is flipped — in a flipped
+        // context an angle points the opposite way down the screen, so the two
+        // ends of the gradient come out swapped.
         NSGradient(starting: palette.cardTop, ending: palette.card)?
-            .draw(in: path, angle: -90)
+            .draw(in: path, angle: 90)
+
+        // The highlight just inside the rim along the top edge. This, more than
+        // the gradient, is what makes a panel read as a raised surface: it is
+        // where a real material would catch the light on its own bevel.
+        //
+        // Filled as a ring rather than stroked and clipped, so the gradient can
+        // fade it out down the sides. A stroke clipped to the top would have to
+        // stop somewhere, and wherever it stopped would be a visible stub.
+        let ring = NSBezierPath()
+        ring.append(NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1),
+                                 xRadius: r - 0.5, yRadius: r - 0.5))
+        ring.append(NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2),
+                                 xRadius: r - 1.5, yRadius: r - 1.5))
+        ring.windingRule = .evenOdd
+        // Fading to the same colour at zero alpha rather than to `.clear`, so
+        // the interpolation cannot travel through some other hue on the way out.
+        NSGradient(colorsAndLocations: (palette.innerLight, 0),
+                   (palette.innerLight.withAlphaComponent(0), 0.28))?
+            .draw(in: ring, angle: 90)
+
         palette.rim.setStroke()
         path.lineWidth = 1
         path.stroke()
@@ -471,15 +495,15 @@ final class BoardController: NSObject, NSWindowDelegate {
         window.isOpaque = false
 
         card.palette = palette
-        // Same surface as the tab strip: chrome top and bottom, list in between.
-        footerBand.fill = palette.header
         footerBand.wash = palette.hover
         footerLine.color = palette.hairline
         bar.track = palette.track
-        tabBar.palette = palette
         rows.forEach { $0.palette = palette }
         // A theme switch can change whether the idle fade applies at all.
         updateAlpha()
+        // The tab strip and the footer are not set here: their colour depends on
+        // the selected note as well as on the theme, so `refreshChrome` owns
+        // them and this call is what pushes the new theme through to them.
         refreshChrome()
     }
 
@@ -503,6 +527,12 @@ final class BoardController: NSObject, NSWindowDelegate {
     /// Cheap refresh: tab titles and progress, row check state, colours.
     func refreshChrome() {
         let color = current?.color ?? .gray
+        // Chrome top and bottom, list in between — and both bands carry a wash
+        // of the selected note's colour, which is the only thing in the window
+        // that makes one note look different from another at a glance.
+        let chrome = palette.tinted(by: color.accent)
+        footerBand.fill = chrome.header
+        tabBar.palette = chrome
         tabBar.configure(notes: tabNotes, selected: current?.id,
                          collapsed: Store.shared.collapsed,
                          hideEdge: hideEdge, autoHide: Store.shared.autoHide)

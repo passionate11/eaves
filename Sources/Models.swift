@@ -18,9 +18,10 @@ enum NoteColor: String, Codable, CaseIterable {
         }
     }
 
-    /// Accent used for the color dot, the checkbox fill and the progress bar.
-    /// It is the *only* place a note's colour shows: the window itself stays
-    /// neutral so switching tabs doesn't repaint everything.
+    /// Accent used for the colour dot, the checkbox fill, the progress bar, and
+    /// as a wash over the chrome — the tab strip and the footer are tinted a
+    /// tenth of the way towards it. The card itself is left neutral: it is the
+    /// ground the text sits on, and text wants a neutral ground.
     var accent: NSColor {
         switch self {
         case .red: return NSColor(srgbRed: 0.90, green: 0.29, blue: 0.31, alpha: 1)
@@ -48,7 +49,10 @@ enum NoteColor: String, Codable, CaseIterable {
 /// The two light and two dark variants are not padding: a warm paper tint and a
 /// cool near-white read completely differently against a wallpaper, and which
 /// one looks right depends on the desktop behind it, not on taste in the
-/// abstract. Same for neutral vs blue-black on the dark side.
+/// abstract. Same on the dark side — `graphite` is a genuinely neutral mid-dark
+/// panel and `ink` is a near-black with a blue cast, which is far enough apart
+/// that the menu offers four dark-and-light choices rather than two plus two
+/// near-duplicates.
 enum Theme: String, Codable, CaseIterable {
     case auto, paper, sand, graphite, ink, glass
 
@@ -93,19 +97,47 @@ enum Theme: String, Codable, CaseIterable {
     }
 }
 
+/// Blends `base` a fraction of the way towards `accent` while keeping its own
+/// alpha. Preserving alpha is the point: the glass palettes are built entirely
+/// out of translucent washes, and `blended(withFraction:of:)` on its own would
+/// quietly drag them towards opaque.
+func mixed(_ base: NSColor, _ accent: NSColor, _ f: CGFloat) -> NSColor {
+    (base.blended(withFraction: f, of: accent) ?? base)
+        .withAlphaComponent(base.alphaComponent)
+}
+
 /// Every surface colour in the window, resolved from the active theme once and
 /// handed to the views. Keeping it in one place is what stopped the tab strip,
 /// the card and the rows from each inventing their own greys.
 struct Palette {
-    var card: NSColor            // the note's surface
+    var card: NSColor            // the note's surface, at the bottom of the gradient
     var cardTop: NSColor         // top of the surface gradient
-    var header: NSColor          // the tab strip, drawn a shade off the card
+    var header: NSColor          // the tab strip and the footer, a shade off the card
     var rim: NSColor             // outer hairline around the window
+    var innerLight: NSColor      // highlight just inside the rim along the top edge
     var hairline: NSColor        // internal dividers
     var activeTab: NSColor       // the selected tab's chip
     var hover: NSColor           // row and tab hover wash
     var track: NSColor           // progress-bar groove
     var dark: Bool
+
+    /// A copy with the chrome pulled towards a note's colour.
+    ///
+    /// Only the band behind the tabs and the footer move. Tinting the card as
+    /// well would be the sticky-note register, and it is the wrong one here: a
+    /// list you read for minutes at a time wants black on white, not black on
+    /// pale purple. This way switching to a purple note visibly changes the
+    /// window without changing the surface any text is on.
+    func tinted(by accent: NSColor) -> Palette {
+        var p = self
+        // Less of it on the dark themes. The same fraction does not buy the same
+        // amount of colour at both ends: mixed into a near-black band an accent
+        // is a large part of what little luminance is there, so a tenth of the
+        // way lands at around 0.4 saturation where on a near-white band it lands
+        // at 0.06. Matching the numbers would make the dark side garish.
+        p.header = mixed(header, accent, dark ? 0.07 : 0.10)
+        return p
+    }
 
     static func of(_ theme: Theme, systemDark: Bool) -> Palette {
         switch theme.resolved(dark: systemDark) {
@@ -114,71 +146,85 @@ struct Palette {
             // enough in luminance that black text on it is easier on the eye
             // than on pure white.
             return Palette(
-                card: NSColor(srgbRed: 0.988, green: 0.973, blue: 0.937, alpha: 1),
-                cardTop: NSColor(srgbRed: 0.996, green: 0.988, blue: 0.961, alpha: 1),
-                header: NSColor(srgbRed: 0.976, green: 0.953, blue: 0.902, alpha: 1),
-                rim: NSColor(srgbRed: 0.62, green: 0.55, blue: 0.42, alpha: 0.28),
+                card: NSColor(srgbRed: 0.973, green: 0.955, blue: 0.909, alpha: 1),
+                cardTop: NSColor(srgbRed: 0.999, green: 0.992, blue: 0.969, alpha: 1),
+                header: NSColor(srgbRed: 0.953, green: 0.926, blue: 0.859, alpha: 1),
+                rim: NSColor(srgbRed: 0.62, green: 0.55, blue: 0.42, alpha: 0.32),
+                innerLight: NSColor(white: 1, alpha: 0.85),
                 hairline: NSColor(srgbRed: 0.45, green: 0.38, blue: 0.24, alpha: 0.12),
                 activeTab: NSColor(white: 1, alpha: 1),
                 hover: NSColor(srgbRed: 0.45, green: 0.38, blue: 0.24, alpha: 0.07),
-                track: NSColor(srgbRed: 0.45, green: 0.38, blue: 0.24, alpha: 0.12),
+                track: NSColor(srgbRed: 0.45, green: 0.38, blue: 0.24, alpha: 0.14),
                 dark: false)
         case .paper:
             // Near-white but not #fff, with a faintly cool cast — this is the
             // Things/Reminders register rather than the sticky-note one.
             return Palette(
-                card: NSColor(srgbRed: 0.992, green: 0.992, blue: 0.996, alpha: 1),
+                card: NSColor(srgbRed: 0.974, green: 0.976, blue: 0.982, alpha: 1),
                 cardTop: NSColor(white: 1, alpha: 1),
-                header: NSColor(srgbRed: 0.965, green: 0.969, blue: 0.976, alpha: 1),
-                rim: NSColor(white: 0, alpha: 0.15),
+                header: NSColor(srgbRed: 0.941, green: 0.945, blue: 0.957, alpha: 1),
+                rim: NSColor(white: 0, alpha: 0.17),
+                innerLight: NSColor(white: 1, alpha: 0.9),
                 hairline: NSColor(white: 0, alpha: 0.08),
                 activeTab: NSColor(white: 1, alpha: 1),
                 hover: NSColor(white: 0, alpha: 0.045),
-                track: NSColor(white: 0, alpha: 0.09),
+                track: NSColor(white: 0, alpha: 0.11),
                 dark: false)
         case .ink:
-            // Blue-black. A dark panel with a hue reads as designed; a pure
-            // neutral one reads as "the lights are off".
+            // Near-black, blue. A dark panel with a hue reads as designed; a
+            // pure neutral one reads as "the lights are off". Pushed well below
+            // `graphite` so the two are a choice rather than a pair.
             return Palette(
-                card: NSColor(srgbRed: 0.106, green: 0.118, blue: 0.149, alpha: 1),
-                cardTop: NSColor(srgbRed: 0.129, green: 0.145, blue: 0.184, alpha: 1),
-                header: NSColor(srgbRed: 0.086, green: 0.098, blue: 0.125, alpha: 1),
-                rim: NSColor(white: 1, alpha: 0.14),
+                card: NSColor(srgbRed: 0.063, green: 0.073, blue: 0.106, alpha: 1),
+                cardTop: NSColor(srgbRed: 0.098, green: 0.114, blue: 0.161, alpha: 1),
+                header: NSColor(srgbRed: 0.043, green: 0.051, blue: 0.078, alpha: 1),
+                rim: NSColor(white: 1, alpha: 0.15),
+                innerLight: NSColor(white: 1, alpha: 0.11),
                 hairline: NSColor(white: 1, alpha: 0.08),
-                activeTab: NSColor(srgbRed: 0.216, green: 0.243, blue: 0.310, alpha: 1),
+                activeTab: NSColor(srgbRed: 0.196, green: 0.224, blue: 0.302, alpha: 1),
                 hover: NSColor(white: 1, alpha: 0.055),
                 track: NSColor(white: 1, alpha: 0.10),
                 dark: true)
         case .graphite:
+            // The neutral dark: a mid-dark panel with no cast at all, for a
+            // desktop busy enough that a tinted one would fight it.
             return Palette(
-                card: NSColor(srgbRed: 0.137, green: 0.141, blue: 0.153, alpha: 1),
-                cardTop: NSColor(srgbRed: 0.169, green: 0.173, blue: 0.188, alpha: 1),
-                header: NSColor(srgbRed: 0.110, green: 0.114, blue: 0.125, alpha: 1),
-                rim: NSColor(white: 1, alpha: 0.16),
+                card: NSColor(srgbRed: 0.169, green: 0.167, blue: 0.163, alpha: 1),
+                cardTop: NSColor(srgbRed: 0.216, green: 0.213, blue: 0.208, alpha: 1),
+                header: NSColor(srgbRed: 0.129, green: 0.127, blue: 0.124, alpha: 1),
+                rim: NSColor(white: 1, alpha: 0.17),
+                innerLight: NSColor(white: 1, alpha: 0.10),
                 hairline: NSColor(white: 1, alpha: 0.09),
-                activeTab: NSColor(white: 1, alpha: 0.15),
+                activeTab: NSColor(white: 1, alpha: 0.16),
                 hover: NSColor(white: 1, alpha: 0.06),
                 track: NSColor(white: 1, alpha: 0.11),
                 dark: true)
         default:   // .glass — painted over live vibrancy, so everything is alpha
             return systemDark
-                ? Palette(card: NSColor(white: 0.13, alpha: 0.70),
-                          cardTop: NSColor(white: 0.19, alpha: 0.66),
-                          header: NSColor(white: 0.08, alpha: 0.35),
+                ? Palette(card: NSColor(white: 0.11, alpha: 0.72),
+                          cardTop: NSColor(white: 0.20, alpha: 0.68),
+                          header: NSColor(white: 0.04, alpha: 0.40),
                           rim: NSColor(white: 1, alpha: 0.15),
+                          innerLight: NSColor(white: 1, alpha: 0.16),
                           hairline: NSColor(white: 1, alpha: 0.09),
                           activeTab: NSColor(white: 1, alpha: 0.20),
                           hover: NSColor(white: 1, alpha: 0.06),
                           track: NSColor(white: 1, alpha: 0.11),
                           dark: true)
-                : Palette(card: NSColor(white: 1, alpha: 0.72),
-                          cardTop: NSColor(white: 1, alpha: 0.84),
-                          header: NSColor(white: 0.55, alpha: 0.13),
+                // The chrome band is a *white* wash rather than a grey one. A
+                // grey wash over live blur does not read as recessed the way an
+                // opaque one does — with the wallpaper still showing through it
+                // just reads as a smudge, which is what made this the one theme
+                // that looked dirty rather than frosted.
+                : Palette(card: NSColor(white: 1, alpha: 0.80),
+                          cardTop: NSColor(white: 1, alpha: 0.90),
+                          header: NSColor(white: 1, alpha: 0.30),
                           rim: NSColor(white: 1, alpha: 0.80),
+                          innerLight: NSColor(white: 1, alpha: 0.9),
                           hairline: NSColor(white: 0, alpha: 0.06),
                           activeTab: NSColor(white: 1, alpha: 0.95),
                           hover: NSColor(white: 0, alpha: 0.04),
-                          track: NSColor(white: 0, alpha: 0.07),
+                          track: NSColor(white: 0, alpha: 0.08),
                           dark: false)
         }
     }

@@ -93,11 +93,12 @@ final class TabItemView: FlippedView {
     override func draw(_ dirtyRect: NSRect) {
         let pill = bounds.insetBy(dx: 1.5, dy: 4)
         if active {
-            // A raised neutral chip. The note's colour only tints it by a few
-            // percent — the dot and the progress bar are where colour lives.
+            // A raised chip carrying the note's colour. The tint has to be
+            // stronger than it looks like it should be: the chip is nearly
+            // white on the light themes, and a few percent of an accent mixed
+            // into white comes back out as white.
             let path = NSBezierPath(roundedRect: pill, xRadius: 8, yRadius: 8)
-            let base = palette.activeTab
-            (base.blended(withFraction: 0.06, of: color.accent) ?? base).setFill()
+            mixed(palette.activeTab, color.accent, 0.14).setFill()
             path.fill()
             // A hairline rim keeps the chip legible where the fill is close to
             // the card colour behind it.
