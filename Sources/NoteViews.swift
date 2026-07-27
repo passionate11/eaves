@@ -472,6 +472,20 @@ func measuredHeight(_ text: String, font: NSFont, width: CGFloat) -> CGFloat {
     return ceil(rect.height)
 }
 
+func lerp(_ a: NSPoint, _ b: NSPoint, _ t: CGFloat) -> NSPoint {
+    NSPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
+}
+
+/// Scales the current context about the middle of a square of the given side.
+/// Concatenated, so the caller is expected to have saved the graphics state.
+func scaleAboutCentre(_ s: CGFloat, side: CGFloat) {
+    let xf = NSAffineTransform()
+    xf.translateX(by: side / 2, yBy: side / 2)
+    xf.scale(by: s)
+    xf.translateX(by: -side / 2, yBy: -side / 2)
+    xf.concat()
+}
+
 final class ItemRowView: FlippedView {
     static let font = NSFont.systemFont(ofSize: 13)
     static let nextFont = NSFont.systemFont(ofSize: 11)
@@ -484,7 +498,13 @@ final class ItemRowView: FlippedView {
     weak var delegate: ItemRowDelegate?
     private(set) var itemID: UUID = UUID()
 
-    var palette: Palette = .of(.auto, systemDark: false) { didSet { needsDisplay = true } }
+    /// Set on the way in, before `configure`. The box is repainted from here as
+    /// well as from there because its empty outline is one of the few things
+    /// drawn from a fixed grey, so it is the one thing a theme switch would
+    /// otherwise leave behind at the old side's value.
+    var palette: Palette = .of(.auto, systemDark: false) {
+        didSet { renderTick(); needsDisplay = true }
+    }
 
     private let check = NSButton()
     private let field = NSTextField()
@@ -492,7 +512,19 @@ final class ItemRowView: FlippedView {
     private lazy var del = symbolButton("xmark", size: 9, target: self,
                                         action: #selector(deleteTapped))
     private var accent: NSColor = .systemBlue
-    private var done = false
+    /// The row's own text, kept because the label is rebuilt from it on every
+    /// frame of the tick and `stringValue` is not a reliable place to read it
+    /// back from once an attributed string has been set.
+    private var text = ""
+
+    /// How far through the tick the row is: 0 is an empty box and plain text, 1
+    /// is the filled box with the line drawn all the way across. Every value
+    /// between is a frame of `playTick`. Both end states draw exactly what the
+    /// two static states used to, so nothing depends on the animation running.
+    private var tick: CGFloat = 0
+    private var tickTimer: Timer?
+    private static let tickDuration: CGFloat = 0.18
+
     private var showsNext = false
     private var hovered = false
     private var arrowY: CGFloat = 0
@@ -508,36 +540,77 @@ final class ItemRowView: FlippedView {
     /// hover wash stays out of the way.
     var lifted = false { didSet { needsDisplay = true } }
 
-    deinit { armTimer?.invalidate() }
+    deinit { armTimer?.invalidate(); tickTimer?.invalidate() }
 
     /// Noticky-style checkbox: a rounded square, empty and hairline-thin until
     /// it is ticked, then filled solid with the note's accent. Drawn rather than
     /// taken from SF Symbols because the corner radius is the whole look.
-    private static func boxImage(done: Bool, accent: NSColor) -> NSImage {
+    ///
+    /// `t` runs 0…1 so one routine draws both resting states and every frame
+    /// between them. At 0 and 1 it produces exactly the two images it always
+    /// did; in between the box dips as if pressed, the fill grows out of the
+    /// middle, and the tick is stroked on by length rather than faded in, so it
+    /// reads as drawn rather than as switched on.
+    private static func boxImage(tick t: CGFloat, accent: NSColor, dark: Bool) -> NSImage {
         let side = boxSide
         return NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
             let box = NSRect(x: 0.5, y: 0.5, width: side - 1, height: side - 1)
             let path = NSBezierPath(roundedRect: box, xRadius: 5.5, yRadius: 5.5)
-            if done {
-                accent.setFill()
+
+            // The whole glyph shrinks and comes back, peaking mid-transition and
+            // landing at exactly 1 on both ends. Scaling down rather than
+            // overshooting past 1 is deliberate: the image is the size of the
+            // box, so anything larger would be clipped square at the corners at
+            // the very moment the eye is on it.
+            NSGraphicsContext.saveGraphicsState()
+            scaleAboutCentre(1 - 0.12 * sin(.pi * t), side: side)
+
+            if t < 1 {
+                // Fixed greys rather than dynamic colours: this closure can run
+                // outside the view's appearance, where semantic colours would
+                // resolve against the wrong side. Two of them, because one grey
+                // is not appearance-neutral — the weight that reads as a quiet
+                // hairline on paper is a bright ring on a near-black card, which
+                // needs markedly less lightness to sit at the same distance.
+                NSColor(white: dark ? 0.46 : 0.62, alpha: 1)
+                    .withAlphaComponent(1 - min(1, t * 2)).setStroke()
+                path.lineWidth = 1.4
+                path.stroke()
+            }
+
+            if t > 0 {
+                // Full size by the time the outline has finished fading, so the
+                // two never both read as edges at once — a part-grown fill
+                // inside a still-visible ring looks like a box within a box.
+                NSGraphicsContext.saveGraphicsState()
+                scaleAboutCentre(1 - pow(1 - min(1, t * 2), 2), side: side)
+                accent.withAlphaComponent(min(1, t * 4)).setFill()
                 path.fill()
+                NSGraphicsContext.restoreGraphicsState()
+            }
+
+            // Held back until the fill has somewhere to sit, then stroked on
+            // over the rest of the transition.
+            let q = max(0, (t - 0.35) / 0.65)
+            if q > 0 {
+                let a = NSPoint(x: side * 0.28, y: side * 0.52)
+                let b = NSPoint(x: side * 0.44, y: side * 0.34)
+                let c = NSPoint(x: side * 0.74, y: side * 0.68)
+                let ab = hypot(b.x - a.x, b.y - a.y), bc = hypot(c.x - b.x, c.y - b.y)
+                var left = (ab + bc) * (1 - pow(1 - min(1, q), 2))
                 let tick = NSBezierPath()
-                tick.move(to: NSPoint(x: side * 0.28, y: side * 0.52))
-                tick.line(to: NSPoint(x: side * 0.44, y: side * 0.34))
-                tick.line(to: NSPoint(x: side * 0.74, y: side * 0.68))
+                tick.move(to: a)
+                tick.line(to: lerp(a, b, min(1, left / ab)))
+                left -= min(left, ab)
+                if left > 0 { tick.line(to: lerp(b, c, min(1, left / bc))) }
                 tick.lineWidth = 1.9
                 tick.lineCapStyle = .round
                 tick.lineJoinStyle = .round
                 NSColor.white.setStroke()
                 tick.stroke()
-            } else {
-                // A fixed mid grey rather than a dynamic colour: this closure can
-                // run outside the view's appearance, where semantic colours would
-                // resolve against the wrong side.
-                NSColor(white: 0.62, alpha: 1).setStroke()
-                path.lineWidth = 1.4
-                path.stroke()
             }
+
+            NSGraphicsContext.restoreGraphicsState()
             return true
         }
     }
@@ -594,30 +667,82 @@ final class ItemRowView: FlippedView {
     func configure(item: ChecklistItem, accent: NSColor) {
         itemID = item.id
         self.accent = accent
-        done = item.done
+        text = item.text
         showsNext = item.hasNext
 
-        check.image = ItemRowView.boxImage(done: item.done, accent: accent)
+        // A refresh that lands mid-tick leaves the tick alone. The frame it is
+        // on is more current than the model's end state, and the timer is on its
+        // way to that end state regardless — snapping to it here is the one way
+        // to make the animation visibly stutter.
+        if tickTimer == nil { tick = item.done ? 1 : 0 }
+        renderTick()
 
-        if field.currentEditor() == nil {
-            if item.done {
-                field.attributedStringValue = NSAttributedString(
-                    string: item.text,
-                    attributes: [.font: ItemRowView.font,
-                                 .strikethroughStyle: NSUnderlineStyle.single.rawValue,
-                                 .strikethroughColor: NSColor.tertiaryLabelColor,
-                                 .foregroundColor: NSColor.tertiaryLabelColor])
-            } else {
-                field.stringValue = item.text
-                field.textColor = .labelColor
-            }
-        }
         if nextField.currentEditor() == nil {
             nextField.stringValue = item.nextText
             nextField.textColor = item.done ? .tertiaryLabelColor : .secondaryLabelColor
         }
         needsLayout = true
         needsDisplay = true
+    }
+
+    /// Paints the box and the label for whatever `tick` currently is. Every
+    /// frame of the animation and every `configure` goes through here, so the
+    /// two can never end up disagreeing about what the row looks like.
+    private func renderTick() {
+        check.image = ItemRowView.boxImage(tick: tick, accent: accent, dark: palette.dark)
+        guard field.currentEditor() == nil else { return }
+        guard tick > 0 else {
+            field.stringValue = text
+            field.textColor = .labelColor
+            return
+        }
+        let colour = tick >= 1 ? NSColor.tertiaryLabelColor
+                               : NSColor.labelColor.withAlphaComponent(1 - 0.74 * tick)
+        let s = NSMutableAttributedString(
+            string: text, attributes: [.font: ItemRowView.font, .foregroundColor: colour])
+        // Struck through only as far along as the tick has got. The line is the
+        // part that means "done", so it is worth watching it get drawn — and
+        // unticking runs the same thing backwards for free.
+        let n = (text as NSString).length
+        let cut = min(n, Int((CGFloat(n) * tick).rounded()))
+        if cut > 0 {
+            // Rounded out to whole characters: a range that stops halfway
+            // through a composed sequence is not one an emoji survives.
+            let r = (text as NSString)
+                .rangeOfComposedCharacterSequences(for: NSRange(location: 0, length: cut))
+            s.addAttributes([.strikethroughStyle: NSUnderlineStyle.single.rawValue,
+                             .strikethroughColor: NSColor.tertiaryLabelColor], range: r)
+        }
+        field.attributedStringValue = s
+    }
+
+    /// Plays the tick in or out. Driven by a timer rather than by Core
+    /// Animation because what moves is a drawn image and a range of text,
+    /// neither of which is a layer property anything can interpolate.
+    ///
+    /// Always restarts from the far end rather than from wherever `tick` sits:
+    /// the model has already been written and `configure` has already snapped
+    /// the row to the finished state by the time this is called.
+    func playTick(to on: Bool) {
+        tickTimer?.invalidate()
+        tick = on ? 0 : 1
+        let step = 1 / (ItemRowView.tickDuration * 60)
+        let t = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
+            guard let self = self else { return timer.invalidate() }
+            self.tick = on ? min(1, self.tick + step) : max(0, self.tick - step)
+            if self.tick == (on ? 1 : 0) {
+                timer.invalidate()
+                self.tickTimer = nil
+            }
+            self.renderTick()
+        }
+        // Common modes rather than the default one: a tick set off from the
+        // menu bar, or while the list is being scrolled or a row dragged, leaves
+        // the run loop in a tracking mode, and a default-mode timer would simply
+        // stop for the duration and finish the animation in one jump afterwards.
+        RunLoop.current.add(t, forMode: .common)
+        tickTimer = t
+        renderTick()
     }
 
     override func layout() {
@@ -941,3 +1066,4 @@ extension ItemRowView: NSTextFieldDelegate {
         }
     }
 }
+

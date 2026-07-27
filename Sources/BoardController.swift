@@ -285,6 +285,10 @@ final class BoardController: NSObject, NSWindowDelegate {
     private var dragFrom = 0
     private var dragTo = 0
     private var dragY: CGFloat = 0
+    /// Runs for the length of a drag. Without it a row can be picked up and have
+    /// nowhere to go: a window this size is full at six items, so the slot you
+    /// want is often off-screen, and there is no hand free to scroll with.
+    private var dragScroll: Timer?
 
     /// When the pointer was last seen off the window, and when the user last
     /// typed. Auto-hide reads both: leaving is the trigger, typing is the veto.
@@ -1276,6 +1280,14 @@ extension BoardController: ItemRowDelegate {
             refreshChrome()
             layoutContents()
         }
+        // Looked up again rather than held onto from before the rebuild: on the
+        // promoted path the view that was ticked no longer exists, and the tick
+        // is worth seeing on that path too — it is the one where something else
+        // also appears, and the animation is what tells the two apart.
+        guard let items = current?.items,
+              let i = items.firstIndex(where: { $0.id == id }), rows.indices.contains(i)
+        else { return }
+        rows[i].playTick(to: items[i].done)
     }
 
     func rowTextChanged(_ id: UUID, _ text: String) {
@@ -1426,6 +1438,47 @@ extension BoardController: ItemRowDelegate {
         dragTo = i
         dragY = rows[i].frame.minY
         rowsHost.addSubview(rows[i], positioned: .above, relativeTo: nil)
+
+        let t = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+            self?.dragScrollTick()
+        }
+        // Common modes: the drag runs inside its own event loop, which leaves
+        // the run loop in a tracking mode for the whole gesture. A default-mode
+        // timer would not get a single turn until the button came back up.
+        RunLoop.current.add(t, forMode: .common)
+        dragScroll = t
+    }
+
+    /// Nudges the list when the held row is pressed up against the top or bottom
+    /// of the visible area, and carries the row along with it so it stays under
+    /// the hand — the pointer has not moved, so nothing else would move it.
+    func dragScrollTick() {
+        guard let d = dragRow else { return }
+        let clip = scroll.contentView
+        let vis = clip.documentVisibleRect
+        // A band inside each edge rather than the edge itself: by the time the
+        // row is fully past the boundary it cannot be seen, and steering
+        // something invisible towards a slot is not a gesture anyone can aim.
+        let band: CGFloat = 26
+        var over: CGFloat = 0
+        if d.frame.minY < vis.minY + band { over = d.frame.minY - (vis.minY + band) }
+        else if d.frame.maxY > vis.maxY - band { over = d.frame.maxY - (vis.maxY - band) }
+        guard over != 0 else { return }
+
+        // Speed rises with how far past the band the row is pushed, so easing
+        // into it creeps and shoving into it moves — and either way it stops the
+        // moment the row is pulled back inside.
+        let limit = max(0, rowsHost.frame.height - vis.height)
+        let to = min(limit, max(0, vis.minY + max(-16, min(16, over * 0.4))))
+        let moved = to - vis.minY
+        guard moved != 0 else { return }
+        clip.scroll(to: NSPoint(x: vis.minX, y: to))
+        scroll.reflectScrolledClipView(clip)
+        // The pointer has not moved, so in the document's own coordinates it
+        // has, by exactly the distance just scrolled. Feeding that back through
+        // the normal path keeps the row welded to the hand and re-picks a target
+        // against the rows that have just come into view.
+        rowDragMoved(to: dragY + moved)
     }
 
     func rowDragMoved(to y: CGFloat) {
@@ -1470,6 +1523,10 @@ extension BoardController: ItemRowDelegate {
     }
 
     func rowDragEnded() {
+        // Before the guard: the timer has to stop even on the paths that find
+        // no row to drop, or it keeps scrolling a list nobody is holding.
+        dragScroll?.invalidate()
+        dragScroll = nil
         guard let d = dragRow else { return }
         d.lifted = false
         let from = dragFrom, to = dragTo
@@ -1569,3 +1626,4 @@ extension BoardController: NSTextFieldDelegate {
         }
     }
 }
+
