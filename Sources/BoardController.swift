@@ -1432,6 +1432,14 @@ extension BoardController: ItemRowDelegate {
         guard let d = dragRow else { return }
         noteTyping()
         dragY = y
+        // The row follows the hand on every event, and without animation: it is
+        // the thing being held. Interpolating it would leave it trailing the
+        // cursor by the animation's whole duration, and leaving it to the
+        // reflow below — which only runs when the target changes — pins it in
+        // place until the next row boundary is crossed, so it lurches a row at
+        // a time instead of moving.
+        d.frame.origin.y = y
+
         // Where the row would land, measured against the list as it would look
         // with the gap closed up. Reading the rows' live frames instead would
         // feed the gap back into its own input — the gap shifts the frames,
@@ -1449,10 +1457,13 @@ extension BoardController: ItemRowDelegate {
         }
         guard to != dragTo else { return }
         dragTo = to
-        // Animated so the rows glide aside instead of teleporting; the dragged
-        // row is excluded, since it is already pinned to the cursor.
+        // Only the rows standing aside animate, so the gap glides open instead
+        // of teleporting. `layoutContents` re-asserts the dragged row's
+        // position too, but to the value just set above — nothing to
+        // interpolate, so it stays welded to the cursor.
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.12
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
             ctx.allowsImplicitAnimation = true
             layoutContents()
         }
@@ -1466,7 +1477,7 @@ extension BoardController: ItemRowDelegate {
         guard from != to else {
             // Dropped where it started. Nothing to write; just let the row
             // settle back into its slot.
-            layoutContents()
+            settle()
             return
         }
         commit {
@@ -1474,7 +1485,29 @@ extension BoardController: ItemRowDelegate {
             let item = $0.items.remove(at: from)
             $0.items.insert(item, at: min(to, $0.items.count))
         }
-        reload()
+        // The row views are reordered to match the model rather than rebuilt.
+        // A reload would replace all of them, and a brand-new view cannot
+        // animate from where the old one was — the held row would snap into its
+        // slot at the exact moment the drag deserves to look finished. `update`
+        // does not fire `onChange`, so nothing rebuilds them behind this — but
+        // if the array has shifted under us anyway, identity says so and a full
+        // rebuild is always correct.
+        guard rows.indices.contains(from), rows[from] === d else { return reload() }
+        let moved = rows.remove(at: from)
+        rows.insert(moved, at: min(to, rows.count))
+        settle()
+    }
+
+    /// Lets go: the held row glides from wherever the hand left it into the slot
+    /// the list has been holding open for it, which is the only thing that still
+    /// needs to move — every other row was already shifted aside during the drag.
+    private func settle() {
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.14
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            ctx.allowsImplicitAnimation = true
+            layoutContents()
+        }
     }
 
     /// Moves the caret into a row and scrolls it into view. Always lands at the
