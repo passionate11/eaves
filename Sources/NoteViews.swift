@@ -114,33 +114,45 @@ final class TabItemView: FlippedView {
         color.accent.withAlphaComponent(active ? 1.0 : 0.5).setFill()
         NSBezierPath(ovalIn: dotR).fill()
 
-        var progW: CGFloat = 0
+        let titleX = dotR.maxX + 6
+        let titleAttrs: [NSAttributedString.Key: Any] = {
+            let para = NSMutableParagraphStyle()
+            para.lineBreakMode = .byTruncatingTail
+            return [.font: active ? TabItemView.activeTitleFont : TabItemView.titleFont,
+                    .foregroundColor: active ? NSColor.labelColor : NSColor.secondaryLabelColor,
+                    .paragraphStyle: para]
+        }()
+
         if showsProgress, !progress.isEmpty {
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: TabItemView.progFont,
                 .foregroundColor: NSColor.tertiaryLabelColor,
             ]
             let size = (progress as NSString).size(withAttributes: attrs)
-            progW = ceil(size.width) + 6
-            (progress as NSString).draw(
-                at: NSPoint(x: bounds.maxX - 9 - ceil(size.width), y: mid - size.height / 2),
-                withAttributes: attrs)
+            // Follows the title rather than sitting against the right edge. A
+            // tab wide enough to have slack would otherwise show `3/7` marooned
+            // across a gap from the name it belongs to; against the right rim it
+            // reads as a separate column instead of part of the tab.
+            let titleW = ceil((title as NSString).size(withAttributes: titleAttrs).width)
+            let rightAligned = bounds.maxX - 9 - ceil(size.width)
+            let x = min(rightAligned, titleX + titleW + 6)
+            (progress as NSString).draw(at: NSPoint(x: x, y: mid - size.height / 2),
+                                        withAttributes: attrs)
         }
 
-        let titleX = dotR.maxX + 6
-        let titleW = bounds.maxX - 9 - progW - titleX
-        guard titleW > 6, editor == nil else { return }
+        let titleMax = bounds.maxX - 9 - progWidth - titleX
+        guard titleMax > 6, editor == nil else { return }
 
-        let para = NSMutableParagraphStyle()
-        para.lineBreakMode = .byTruncatingTail
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: active ? TabItemView.activeTitleFont : TabItemView.titleFont,
-            .foregroundColor: active ? NSColor.labelColor : NSColor.secondaryLabelColor,
-            .paragraphStyle: para,
-        ]
-        let h = ceil((title as NSString).size(withAttributes: attrs).height)
-        (title as NSString).draw(in: NSRect(x: titleX, y: mid - h / 2, width: titleW, height: h),
-                                 withAttributes: attrs)
+        let h = ceil((title as NSString).size(withAttributes: titleAttrs).height)
+        (title as NSString).draw(in: NSRect(x: titleX, y: mid - h / 2, width: titleMax, height: h),
+                                 withAttributes: titleAttrs)
+    }
+
+    /// Room the `3/7` suffix needs, so the title knows where to truncate.
+    private var progWidth: CGFloat {
+        guard showsProgress, !progress.isEmpty else { return 0 }
+        return ceil((progress as NSString)
+            .size(withAttributes: [.font: TabItemView.progFont]).width) + 6
     }
 
     // MARK: Input
@@ -347,7 +359,9 @@ final class TabBarView: FlippedView {
         }
     }
 
-    /// Natural widths scaled down toward `avail`, each clamped at its own floor.
+    /// Natural widths fitted to `avail`: scaled down toward it when they
+    /// overflow, each clamped at its own floor, and grown into the slack when
+    /// they fall short.
     private func fitted(notes: [Note], selected: UUID?,
                         avail: CGFloat, withProgress: Bool) -> [CGFloat] {
         let natural = notes.map {
@@ -355,7 +369,8 @@ final class TabBarView: FlippedView {
                                      withProgress: withProgress)
         }
         let total = natural.reduce(0, +)
-        guard total > avail, total > 0 else { return natural }
+        guard total > 0 else { return natural }
+        guard total > avail else { return grown(natural, avail: avail) }
 
         let floors = notes.map {
             withProgress ? TabItemView.floorWidth(note: $0, withProgress: true)
@@ -363,6 +378,35 @@ final class TabBarView: FlippedView {
         }
         let scale = avail / total
         return zip(natural, floors).map { max($1, $0 * scale) }
+    }
+
+    /// Spreads leftover strip width over the tabs, evenly and up to a ceiling.
+    ///
+    /// Evenly rather than in proportion to the titles, because the point is to
+    /// fill the strip, not to reward the note with the longest name — and equal
+    /// tabs are what a strip of tabs is expected to look like. The `4` matches
+    /// the left inset in `layoutTabs`, so the last tab stops where the controls
+    /// begin instead of tucking under them.
+    private func grown(_ natural: [CGFloat], avail: CGFloat) -> [CGFloat] {
+        var w = natural
+        var slack = avail - 4 - w.reduce(0, +)
+        guard slack > 0 else { return w }
+        // Several passes: a tab that hits the ceiling hands its share back to
+        // the others rather than stranding the width.
+        while slack > 0.5 {
+            let hungry = w.indices.filter { w[$0] < M.tabMaxWidth }
+            guard !hungry.isEmpty else { break }
+            let share = slack / CGFloat(hungry.count)
+            var used: CGFloat = 0
+            for i in hungry {
+                let take = min(share, M.tabMaxWidth - w[i])
+                w[i] += take
+                used += take
+            }
+            slack -= used
+            if used < 0.5 { break }
+        }
+        return w
     }
 
     // Empty strip area behaves like a title bar: drag moves, double-click folds.

@@ -27,6 +27,11 @@ enum M {
     static let fadeAlpha: CGFloat = 0.96
     /// A tab never shrinks below this; past that point the strip clips.
     static let tabMinWidth: CGFloat = 46
+    /// A tab never grows past this, however much room the strip has. Tabs do
+    /// take up the slack when there is some — a lone tab as a small chip in an
+    /// otherwise empty strip looks lost — but a single note in a wide window
+    /// should still read as a tab, not as a title bar.
+    static let tabMaxWidth: CGFloat = 128
     /// Titles stop growing here so one long name can't crowd out the rest.
     static let tabTitleMax: CGFloat = 96
     /// Titles shrink to this before the `3/7` suffix is given up.
