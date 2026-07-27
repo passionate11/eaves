@@ -721,23 +721,49 @@ final class ItemRowView: FlippedView {
     }
 
     override func resetCursorRects() {
-        // Only over the grip. The rest of the row is text, and an open hand over
-        // text would promise a drag that will not start there.
+        // Only over the grip. The row drags from anywhere, but the rest of it is
+        // text that also takes a click to place a caret, and an open hand over
+        // text would advertise the wrong one of the two.
         addCursorRect(NSRect(x: 0, y: 0, width: M.pad, height: bounds.height),
                       cursor: .openHand)
     }
 
-    /// Rows are reordered by dragging the strip to the left of the checkbox.
+    private var editing: Bool {
+        field.currentEditor() != nil || nextField.currentEditor() != nil
+    }
+
+    /// The row takes the press itself, so a drag can start anywhere on it.
     ///
-    /// It is the only part of the row that is not already spoken for: the text
-    /// field needs the press to place a caret, and the checkbox needs it to
-    /// tick. Everything that reaches here is therefore a press on that strip —
-    /// AppKit gives the subviews first refusal — so nothing has to be tested
-    /// for position, only for whether the pointer goes on to move.
+    /// It has to be swallowed before the subviews see it: whether a press means
+    /// "move this" or "put the caret here" is only known once the pointer has
+    /// either moved or failed to, and the text field would have acted on it
+    /// long before then. `mouseDown` delivers the click by hand if no drag
+    /// follows.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard let hit = super.hitTest(point) else { return nil }
+        // A row with the caret in it is being written, not arranged. Inside the
+        // text you are working on a press means a caret, a selection or a
+        // shift-extend, and taking those over from the field editor would mean
+        // reimplementing all of them worse. Such a row still drags by its grip.
+        if editing { return hit }
+        // The ✕ is small and already means exactly one thing.
+        if hit === del { return hit }
+        return self
+    }
+
+    /// Rows are reordered by dragging them up or down.
     override func mouseDown(with event: NSEvent) {
         window?.makeKeyAndOrderFront(nil)
         let start = event.locationInWindow
         let grab = convert(start, from: nil).y
+        // What the press would have landed on, had the row not taken it.
+        let under = superview.flatMap { super.hitTest($0.convert(start, from: nil)) }
+        // Captured once rather than read per event: ending another row's edit
+        // can drop an empty ↳ line, which rebuilds the list and takes this view
+        // out of the hierarchy while the gesture is still running. The
+        // controller follows the drag by item id and is unbothered, but a
+        // `superview` read after that point would be nil and strand it.
+        let host = superview
         var dragging = false
 
         // A local event loop rather than mouseDragged/mouseUp overrides: the
@@ -748,21 +774,45 @@ final class ItemRowView: FlippedView {
             if e.type == .leftMouseUp { break }
             let p = e.locationInWindow
             if !dragging {
-                // Below AppKit's own drag threshold this is still a click, and a
-                // click on the strip should do nothing at all.
+                // Below AppKit's own drag threshold this is still a click.
                 guard abs(p.y - start.y) > 3 || abs(p.x - start.x) > 3 else { continue }
                 dragging = true
                 NSCursor.closedHand.push()
                 delegate?.rowDragBegan(itemID, grabOffset: grab)
             }
-            guard let host = superview else { continue }
+            guard let host = host else { continue }
             delegate?.rowDragMoved(to: host.convert(p, from: nil).y - grab)
         }
 
         if dragging {
             NSCursor.pop()
             delegate?.rowDragEnded()
+            return
         }
+        deliver(click: event, to: under)
+    }
+
+    /// A press that never moved. The row swallowed it to find out whether a
+    /// drag was coming, so what it was for has to happen here instead.
+    private func deliver(click event: NSEvent, to view: NSView?) {
+        if view === check {
+            delegate?.rowToggle(itemID)
+            return
+        }
+        guard let tf = view as? NSTextField else { return }
+        window?.makeFirstResponder(tf)
+        guard let ed = tf.currentEditor() as? NSTextView else { return }
+        // Where in the text the click actually landed. Becoming first responder
+        // selects the whole field — right when ⇥ lands on it, wrong for a click
+        // that was aimed at a particular word.
+        let p = ed.convert(event.locationInWindow, from: nil)
+        ed.setSelectedRange(NSRange(location: ed.characterIndexForInsertion(at: p),
+                                    length: 0))
+        // The field editor never saw this press, so the counts it would have
+        // acted on are honoured here. From the second click onward the row is
+        // editing and it receives them itself.
+        if event.clickCount == 2 { ed.selectWord(nil) }
+        else if event.clickCount >= 3 { ed.selectLine(nil) }
     }
 
     /// First Backspace on an empty row. Shows the row is about to go and starts
