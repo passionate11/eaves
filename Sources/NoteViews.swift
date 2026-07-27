@@ -679,22 +679,6 @@ final class ItemRowView: FlippedView {
                          xRadius: 8, yRadius: 8).fill()
         }
 
-        // The grip: two short rules in the margin, on hover only. Enough to say
-        // the strip is grabbable without adding a permanent column of dots to
-        // every row in the list.
-        if hovered || lifted {
-            NSColor.tertiaryLabelColor.withAlphaComponent(0.55).setStroke()
-            let p = NSBezierPath()
-            let x = M.pad - 6.5
-            for dy in [-2.5, 2.5] as [CGFloat] {
-                p.move(to: NSPoint(x: x, y: M.rowPad + 8 + dy))
-                p.line(to: NSPoint(x: x + 5, y: M.rowPad + 8 + dy))
-            }
-            p.lineWidth = 1.2
-            p.lineCapStyle = .round
-            p.stroke()
-        }
-
         guard showsNext else { return }
         ("↳" as NSString).draw(
             at: NSPoint(x: M.pad + ItemRowView.checkboxW + 1, y: arrowY),
@@ -721,9 +705,11 @@ final class ItemRowView: FlippedView {
     }
 
     override func resetCursorRects() {
-        // Only over the grip. The row drags from anywhere, but the rest of it is
-        // text that also takes a click to place a caret, and an open hand over
-        // text would advertise the wrong one of the two.
+        // The row drags from anywhere on it, so there is no handle to point at
+        // and no glyph in the margin pretending to be one. This is the only
+        // hint left: the margin is the one part of the row that means nothing
+        // else, so an open hand over it can say "movable" without promising
+        // that the text under the I-beam is not.
         addCursorRect(NSRect(x: 0, y: 0, width: M.pad, height: bounds.height),
                       cursor: .openHand)
     }
