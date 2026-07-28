@@ -10,6 +10,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Ticked items are swept a day after they were ticked. On a timer as well
     /// as at launch because this app is meant to be left running for weeks —
     /// a launch-only sweep would almost never fire for the people it is for.
+    ///
+    /// Six-hourly rather than often. The threshold is a day, so a coarse timer
+    /// only means a row leaves somewhere in the six hours after it is due,
+    /// which nobody is watching for — and a sweep that ran every few minutes
+    /// would spend the whole day waking up to find nothing to do.
     private var sweepTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -41,14 +46,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         sweep()
-        sweepTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+        sweepTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in
             self?.sweep()
         }
     }
 
     /// Never while something is being typed into: the sweep rebuilds the list,
-    /// and a rebuild takes the field editor with it. There is another pass along
-    /// in five minutes, and a row that has already waited a day can wait for it.
+    /// and a rebuild takes the field editor with it. Nothing is lost by waiting
+    /// — the next pass will find the same rows, and one that has already sat
+    /// there a day is in no hurry.
     private func sweep() {
         guard let board = board, !board.isEditing else { return }
         if Store.shared.sweepDone() { board.reload() }
