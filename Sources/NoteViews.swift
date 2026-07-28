@@ -469,35 +469,28 @@ protocol ItemRowDelegate: AnyObject {
 
 /// The little creation stamp at the right-hand end of a row.
 ///
-/// Three formats rather than one, chosen by how old the item is, because the
-/// part of a timestamp that tells you anything changes with age: within today
-/// the hour is what places an item among the others, by tomorrow only the day
-/// does, and the year only matters once it is not this one. A full date on
-/// every row would also be a wide column of almost-identical strings, which is
-/// a lot of the row's width to spend on something you would stop reading.
+/// Fixed patterns rather than localized templates. `M/d-HH:mm` is the format
+/// this was asked for by example, and letting the locale have it would produce
+/// `7/25-1:21 PM` on a 12-hour system — wider than the strip it has to fit in,
+/// and no longer the thing that was asked for.
 ///
-/// Built from localized templates rather than fixed patterns so the order of
-/// the fields and the 12-vs-24-hour clock follow the system, and held onto
-/// because a `DateFormatter` is expensive to make and these are wanted once
-/// per row per redraw.
+/// Past the turn of the year the time has stopped telling you anything and the
+/// year has started to, so they trade places. That also keeps the string inside
+/// the same width, which a year *plus* a time would not.
 enum Stamp {
-    private static let time = formatter("jmm")
-    private static let day = formatter("Md")
-    private static let dated = formatter("yyMd")
+    private static let sameYear = formatter("M/d-HH:mm")
+    private static let older = formatter("yy/M/d")
 
-    private static func formatter(_ template: String) -> DateFormatter {
+    private static func formatter(_ pattern: String) -> DateFormatter {
         let f = DateFormatter()
-        f.setLocalizedDateFormatFromTemplate(template)
+        f.dateFormat = pattern
         return f
     }
 
     static func text(for date: Date) -> String {
-        let cal = Calendar.current
-        if cal.isDateInToday(date) { return time.string(from: date) }
-        guard cal.isDate(date, equalTo: Date(), toGranularity: .year) else {
-            return dated.string(from: date)
-        }
-        return day.string(from: date)
+        Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
+            ? sameYear.string(from: date)
+            : older.string(from: date)
     }
 }
 
@@ -530,8 +523,10 @@ final class ItemRowView: FlippedView {
     static let checkboxW: CGFloat = 25
     static let trailing: CGFloat = 20
     static let boxSide: CGFloat = 17
-    /// Width the creation stamp is right-aligned within.
-    static let stampW: CGFloat = 44
+    /// Width the creation stamp is right-aligned within. Sized for the widest
+    /// string the format can produce — `12/31-23:59` — so no date ever arrives
+    /// clipped into a half-date, which would be worse than showing none.
+    static let stampW: CGFloat = 57
     /// Gutter a stamped row keeps clear on the right — the stamp plus a gap, so
     /// a long item's text stops short of it instead of running underneath.
     static let stampGutter: CGFloat = stampW + 6

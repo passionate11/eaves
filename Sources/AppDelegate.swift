@@ -7,6 +7,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Polled instead of using a global mouse monitor: a timer needs no
     /// Accessibility grant and fires reliably regardless of which app is front.
     private var hoverTimer: Timer?
+    /// Ticked items are swept a day after they were ticked. On a timer as well
+    /// as at launch because this app is meant to be left running for weeks —
+    /// a launch-only sweep would almost never fire for the people it is for.
+    private var sweepTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Before anything else: this is what makes ⌘Z / ⌘A / ⌘C / ⌘V work at
@@ -35,6 +39,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
             self?.checkDockHover()
         }
+
+        sweep()
+        sweepTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+            self?.sweep()
+        }
+    }
+
+    /// Never while something is being typed into: the sweep rebuilds the list,
+    /// and a rebuild takes the field editor with it. There is another pass along
+    /// in five minutes, and a row that has already waited a day can wait for it.
+    private func sweep() {
+        guard let board = board, !board.isEditing else { return }
+        if Store.shared.sweepDone() { board.reload() }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

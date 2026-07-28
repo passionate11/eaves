@@ -251,6 +251,13 @@ struct ChecklistItem: Codable, Identifiable, Equatable {
     /// and a stamp reading "the day you updated the app" would be a fabrication
     /// sitting in the UI looking like a fact. They show no stamp at all.
     var created: Date? = Date()
+    /// When the item was ticked, and nil whenever it is not ticked. This is what
+    /// the sweep counts from, and it is a separate field from `created` because
+    /// nothing else in the file records it: "done" is a flag with no date on it.
+    ///
+    /// Cleared on unticking rather than merely left behind, so an item put back
+    /// on the list is back for good instead of carrying a day-old death sentence.
+    var doneAt: Date? = nil
 
     var nextText: String { next ?? "" }
     var hasNext: Bool { next != nil }
@@ -397,6 +404,7 @@ final class Store {
 
     private var fileURL: URL { dir.appendingPathComponent("notes.json") }
     private var settingsURL: URL { dir.appendingPathComponent("settings.json") }
+    private var sweptURL: URL { dir.appendingPathComponent("swept.json") }
 
     private struct Settings: Codable {
         var mutedTags: [String] = []
@@ -510,6 +518,7 @@ final class Store {
            let decoded = try? JSONDecoder().decode([Note].self, from: data) {
             notes = decoded
         }
+        startTheClockOnAlreadyDoneItems()
         if let data = try? Data(contentsOf: settingsURL),
            let decoded = try? JSONDecoder().decode(Settings.self, from: data) {
             s = decoded
@@ -563,6 +572,96 @@ final class Store {
         notes.removeAll { $0.id == id }
         scheduleSave()
         onChange?()
+    }
+
+    // MARK: Sweeping finished items
+
+    /// Gives a completion time to items that were ticked before this app knew
+    /// to record one.
+    ///
+    /// There is no way to recover when they were actually finished, and both
+    /// obvious readings of the missing value are wrong: treating it as "long
+    /// ago" would sweep away someone's whole ticked history the first time they
+    /// launched the new build, and treating it as "never" would leave those
+    /// rows sitting there forever while every newer one got cleared. So the
+    /// clock starts at the first launch that can see them — they get the same
+    /// full day as everything else, counted from here.
+    private func startTheClockOnAlreadyDoneItems() {
+        let now = Date()
+        var touched = false
+        for i in notes.indices {
+            for j in notes[i].items.indices
+            where notes[i].items[j].done && notes[i].items[j].doneAt == nil {
+                notes[i].items[j].doneAt = now
+                touched = true
+            }
+        }
+        if touched { scheduleSave() }
+    }
+
+    /// How long a ticked item stays on the list before it is swept off it.
+    static let sweepAfter: TimeInterval = 24 * 3600
+    /// How many swept items `swept.json` keeps before the oldest start dropping.
+    private static let sweptKeep = 500
+
+    /// A row that has been swept, kept in a form meant to be read by a person.
+    private struct SweptItem: Codable {
+        var text: String
+        var note: String
+        var created: Date?
+        var done: Date
+    }
+
+    /// Drops every item that has been ticked for longer than `sweepAfter`.
+    /// Returns true if anything went, so the caller knows to rebuild the list.
+    ///
+    /// The items are appended to `swept.json` on the way out. Taking something
+    /// off the list is the point, but a task ticked yesterday is exactly what
+    /// you want in front of you when you sit down to write up what you got
+    /// done — so this clears the list without destroying the record. Nothing
+    /// reads that file back; it sits next to notes.json for whoever wants it.
+    @discardableResult
+    func sweepDone(now: Date = Date()) -> Bool {
+        var gone: [SweptItem] = []
+        for i in notes.indices {
+            let title = notes[i].title
+            notes[i].items.removeAll { item in
+                guard item.done, let at = item.doneAt,
+                      now.timeIntervalSince(at) >= Store.sweepAfter else { return false }
+                gone.append(SweptItem(text: item.text, note: title,
+                                      created: item.created, done: at))
+                return true
+            }
+        }
+        guard !gone.isEmpty else { return false }
+        // Archived before the notes are saved, so a crash in between costs the
+        // sweep rather than the rows.
+        archive(gone)
+        scheduleSave()
+        return true
+    }
+
+    /// ISO dates in `swept.json`, unlike everywhere else. The rest of the store
+    /// is machine state and uses whatever `JSONEncoder` defaults to; this file
+    /// exists to be opened and read, and a count of seconds since 2001 is not.
+    private static let sweptCoding: (JSONEncoder, JSONDecoder) = {
+        let e = JSONEncoder()
+        e.outputFormatting = [.prettyPrinted, .sortedKeys]
+        e.dateEncodingStrategy = .iso8601
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return (e, d)
+    }()
+
+    private func archive(_ items: [SweptItem]) {
+        let (encoder, decoder) = Store.sweptCoding
+        var all = (try? Data(contentsOf: sweptURL))
+            .flatMap { try? decoder.decode([SweptItem].self, from: $0) } ?? []
+        all.append(contentsOf: items)
+        if all.count > Store.sweptKeep { all.removeFirst(all.count - Store.sweptKeep) }
+        if let data = try? encoder.encode(all) {
+            try? data.write(to: sweptURL, options: .atomic)
+        }
     }
 
     var allTags: [String] {

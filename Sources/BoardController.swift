@@ -300,6 +300,11 @@ final class BoardController: NSObject, NSWindowDelegate {
     private var mouseInside = false
     private(set) var isRetracted = false
 
+    /// True while any field in the window has a caret in it. `NSText` rather
+    /// than the field itself because what holds first-responder status during
+    /// editing is the shared field editor, not the control it is editing.
+    var isEditing: Bool { window.firstResponder is NSText }
+
     /// Live state of a row drag: which row is in the air, and where it would
     /// land if it were let go now. Nothing is written to the note until then —
     /// a drag that is abandoned by dropping a row back where it started must
@@ -1294,6 +1299,9 @@ extension BoardController: ItemRowDelegate {
         commit {
             guard let i = $0.items.firstIndex(where: { $0.id == id }) else { return }
             $0.items[i].done.toggle()
+            // The sweep counts from here. Cleared again on unticking, so putting
+            // something back on the list puts it back for good.
+            $0.items[i].doneAt = $0.items[i].done ? Date() : nil
             // Ticking an item hands its next line to a fresh todo right below it.
             // This is the whole point of the field: come back after the job has
             // finished and the follow-up is already sitting there, unticked.
