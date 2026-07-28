@@ -396,6 +396,13 @@ final class Store {
 
     var onChange: (() -> Void)?
 
+    /// Docking is set from half a dozen places — the menu, the drag, the
+    /// keyboard, the edge snap — and one of them is the only thing that decides
+    /// whether the cursor has to be watched at all. A hook here rather than a
+    /// call at each of those sites, because the one that gets forgotten is the
+    /// one that leaves a timer running for nothing.
+    var onDockChange: (() -> Void)?
+
     private let dir: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory,
                                             in: .userDomainMask)[0]
@@ -441,7 +448,7 @@ final class Store {
 
     var dock: DockEdge {
         get { s.dock }
-        set { s.dock = newValue; scheduleSave() }
+        set { s.dock = newValue; scheduleSave(); onDockChange?() }
     }
 
     var floatOnTop: Bool {

@@ -6,6 +6,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var board: BoardController!
     /// Polled instead of using a global mouse monitor: a timer needs no
     /// Accessibility grant and fires reliably regardless of which app is front.
+    ///
+    /// Only alive while the window is actually docked — see `syncHoverTimer`.
     private var hoverTimer: Timer?
     /// Ticked items are swept a day after they were ticked. On a timer as well
     /// as at launch because this app is meant to be left running for weeks —
@@ -41,9 +43,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Store.shared.onChange = { [weak self] in self?.board.reload() }
         if Store.shared.allHidden { setAllHidden(true) }
 
-        hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
-            self?.checkDockHover()
-        }
+        syncHoverTimer()
+        Store.shared.onDockChange = { [weak self] in self?.syncHoverTimer() }
 
         sweep()
         sweepTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in
@@ -80,6 +81,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: Dock hover
+
+    /// Starts the hover poll while the window is docked and stops it otherwise.
+    ///
+    /// Undocked, `checkDockHover` has nothing it can do — both halves of it are
+    /// behind the same `dock != .none` guard — so leaving the timer running
+    /// would be eight wake-ups a second, seven hundred thousand a day, to reach
+    /// a `return`. Cheap each time and free never.
+    private func syncHoverTimer() {
+        let wanted = Store.shared.dock != .none
+        guard wanted != (hoverTimer != nil) else { return }
+        hoverTimer?.invalidate()
+        hoverTimer = wanted
+            ? Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
+                  self?.checkDockHover()
+              }
+            : nil
+    }
 
     /// Drives both halves of the docked window's behaviour: the cursor touching
     /// the sliver slides it out, and the controller's own timing rules decide
