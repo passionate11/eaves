@@ -527,9 +527,17 @@ final class ItemRowView: FlippedView {
     /// string the format can produce — `12/31-23:59` — so no date ever arrives
     /// clipped into a half-date, which would be worse than showing none.
     static let stampW: CGFloat = 57
-    /// Gutter a stamped row keeps clear on the right — the stamp plus a gap, so
-    /// a long item's text stops short of it instead of running underneath.
-    static let stampGutter: CGFloat = stampW + 6
+    static let delSide: CGFloat = 12
+    /// Gutter a stamped row keeps clear on the right: the stamp, the ✕, and the
+    /// gaps around them.
+    ///
+    /// Both are reserved even though the ✕ only appears on hover, which costs
+    /// every stamped row the ✕'s width all the time. The alternative was to let
+    /// them share the strip and swap, and that turned out to be backwards:
+    /// pointing at a row is when you are reading it, so it is the last moment
+    /// to take something off it. Paying the width buys a row that does not
+    /// rearrange itself under the cursor.
+    static let stampGutter: CGFloat = stampW + 6 + delSide + 6
     static let stampFont = NSFont.systemFont(ofSize: 9.5)
     /// How far the next line is inset past the item's own text.
     static let nextIndent: CGFloat = 16
@@ -809,7 +817,8 @@ final class ItemRowView: FlippedView {
         let side = ItemRowView.boxSide
         let top = M.rowPad
         check.frame = NSRect(x: M.pad, y: top, width: side, height: side)
-        del.frame = NSRect(x: w - M.pad - 12, y: top + 3, width: 12, height: 12)
+        del.frame = NSRect(x: w - M.pad - ItemRowView.delSide, y: top + 3,
+                           width: ItemRowView.delSide, height: ItemRowView.delSide)
 
         let x = M.pad + ItemRowView.checkboxW
         let textW = ItemRowView.textWidth(in: w, stamped: stamp != nil)
@@ -862,20 +871,20 @@ final class ItemRowView: FlippedView {
                          xRadius: 8, yRadius: 8).fill()
         }
 
-        // When the row was made, in the same strip the ✕ uses — drawn only when
-        // the ✕ is not there, which is to say whenever the pointer is somewhere
-        // else. Stacking the two would make both unreadable, and the stamp is
-        // the one that can wait: the moment you are pointing at a row is the
-        // moment you want the button, not the trivia. Nothing shifts as they
-        // swap, because the gutter is reserved either way.
-        if let s = stamp, del.isHidden {
+        // When the row was made, just to the left of where the ✕ appears. It
+        // stays put and stays visible while the pointer is on the row — that is
+        // the moment you are actually reading the row, so it is the wrong one
+        // to take anything off it — and darkens a step instead, which is about
+        // the only emphasis available to something this small.
+        if let s = stamp {
             let p = NSMutableParagraphStyle()
             p.alignment = .right
             (s as NSString).draw(
-                in: NSRect(x: bounds.width - M.pad - ItemRowView.stampW,
+                in: NSRect(x: bounds.width - M.pad - ItemRowView.delSide - 6 - ItemRowView.stampW,
                            y: M.rowPad + 3, width: ItemRowView.stampW, height: 13),
                 withAttributes: [.font: ItemRowView.stampFont,
-                                 .foregroundColor: NSColor.tertiaryLabelColor,
+                                 .foregroundColor: hovered ? NSColor.secondaryLabelColor
+                                                           : NSColor.tertiaryLabelColor,
                                  .paragraphStyle: p])
         }
 
