@@ -441,6 +441,9 @@ protocol ItemRowDelegate: AnyObject {
     func rowTextChanged(_ id: UUID, _ text: String)
     func rowDelete(_ id: UUID)
     func rowInsertAfter(_ id: UUID)
+    /// Return with the caret at the very start of a row that already has text:
+    /// the new empty row takes this one's place and this one moves down.
+    func rowInsertBefore(_ id: UUID)
     /// Tab was pressed in the main field: open (or jump to) the next line.
     func rowBeginNext(_ id: UUID)
     func rowNextChanged(_ id: UUID, _ text: String)
@@ -462,6 +465,40 @@ protocol ItemRowDelegate: AnyObject {
     /// `y` is the new top of the dragged row, in the list's coordinates.
     func rowDragMoved(to y: CGFloat)
     func rowDragEnded()
+}
+
+/// The little creation stamp at the right-hand end of a row.
+///
+/// Three formats rather than one, chosen by how old the item is, because the
+/// part of a timestamp that tells you anything changes with age: within today
+/// the hour is what places an item among the others, by tomorrow only the day
+/// does, and the year only matters once it is not this one. A full date on
+/// every row would also be a wide column of almost-identical strings, which is
+/// a lot of the row's width to spend on something you would stop reading.
+///
+/// Built from localized templates rather than fixed patterns so the order of
+/// the fields and the 12-vs-24-hour clock follow the system, and held onto
+/// because a `DateFormatter` is expensive to make and these are wanted once
+/// per row per redraw.
+enum Stamp {
+    private static let time = formatter("jmm")
+    private static let day = formatter("Md")
+    private static let dated = formatter("yyMd")
+
+    private static func formatter(_ template: String) -> DateFormatter {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate(template)
+        return f
+    }
+
+    static func text(for date: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { return time.string(from: date) }
+        guard cal.isDate(date, equalTo: Date(), toGranularity: .year) else {
+            return dated.string(from: date)
+        }
+        return day.string(from: date)
+    }
 }
 
 func measuredHeight(_ text: String, font: NSFont, width: CGFloat) -> CGFloat {
@@ -493,8 +530,28 @@ final class ItemRowView: FlippedView {
     static let checkboxW: CGFloat = 25
     static let trailing: CGFloat = 20
     static let boxSide: CGFloat = 17
+    /// Width the creation stamp is right-aligned within.
+    static let stampW: CGFloat = 44
+    /// Gutter a stamped row keeps clear on the right — the stamp plus a gap, so
+    /// a long item's text stops short of it instead of running underneath.
+    static let stampGutter: CGFloat = stampW + 6
+    static let stampFont = NSFont.systemFont(ofSize: 9.5)
     /// How far the next line is inset past the item's own text.
     static let nextIndent: CGFloat = 16
+
+    /// The width the item's own text gets. Shared by `height(for:)` and
+    /// `layout()`, which have to agree exactly: they are the width a row is
+    /// measured at and the width it then wraps at, and a row measured against
+    /// one number and laid out against another clips its own last line.
+    ///
+    /// A row with no stamp keeps the old, narrower gutter. That is not just
+    /// thrift — items from a notes.json that predates the stamp have nothing to
+    /// show there, and reserving the space anyway would reflow every list that
+    /// existed before this feature for no visible gain.
+    static func textWidth(in width: CGFloat, stamped: Bool) -> CGFloat {
+        max(10, width - (M.pad + checkboxW)
+                - max(trailing, stamped ? stampGutter : 0) - M.pad)
+    }
 
     weak var delegate: ItemRowDelegate?
     private(set) var itemID: UUID = UUID()
@@ -527,6 +584,10 @@ final class ItemRowView: FlippedView {
     private static let tickDuration: CGFloat = 0.18
 
     private var showsNext = false
+    /// The formatted creation stamp, or nil for an item that has no recorded
+    /// creation time. Kept formatted rather than as a `Date` because it is
+    /// wanted on every redraw and the row already knows when it changes.
+    private var stamp: String?
     private var hovered = false
     private var arrowY: CGFloat = 0
     private var tracking: NSTrackingArea?
@@ -656,7 +717,7 @@ final class ItemRowView: FlippedView {
     required init?(coder: NSCoder) { fatalError() }
 
     static func height(for item: ChecklistItem, width: CGFloat) -> CGFloat {
-        let textW = max(10, width - (M.pad + checkboxW) - trailing - M.pad)
+        let textW = textWidth(in: width, stamped: item.created != nil)
         var h = max(M.rowMin, measuredHeight(item.text, font: font, width: textW) + M.rowPad * 2)
         if item.hasNext {
             let nw = max(10, textW - nextIndent)
@@ -670,6 +731,7 @@ final class ItemRowView: FlippedView {
         self.accent = accent
         text = item.text
         showsNext = item.hasNext
+        stamp = item.created.map(Stamp.text(for:))
 
         // A refresh that lands mid-tick leaves the tick alone. The frame it is
         // on is more current than the model's end state, and the timer is on its
@@ -755,7 +817,7 @@ final class ItemRowView: FlippedView {
         del.frame = NSRect(x: w - M.pad - 12, y: top + 3, width: 12, height: 12)
 
         let x = M.pad + ItemRowView.checkboxW
-        let textW = max(10, w - x - ItemRowView.trailing - M.pad)
+        let textW = ItemRowView.textWidth(in: w, stamped: stamp != nil)
         nextField.isHidden = !showsNext
 
         guard showsNext else {
@@ -803,6 +865,23 @@ final class ItemRowView: FlippedView {
             palette.hover.setFill()
             NSBezierPath(roundedRect: bounds.insetBy(dx: 6, dy: 1),
                          xRadius: 8, yRadius: 8).fill()
+        }
+
+        // When the row was made, in the same strip the ✕ uses — drawn only when
+        // the ✕ is not there, which is to say whenever the pointer is somewhere
+        // else. Stacking the two would make both unreadable, and the stamp is
+        // the one that can wait: the moment you are pointing at a row is the
+        // moment you want the button, not the trivia. Nothing shifts as they
+        // swap, because the gutter is reserved either way.
+        if let s = stamp, del.isHidden {
+            let p = NSMutableParagraphStyle()
+            p.alignment = .right
+            (s as NSString).draw(
+                in: NSRect(x: bounds.width - M.pad - ItemRowView.stampW,
+                           y: M.rowPad + 3, width: ItemRowView.stampW, height: 13),
+                withAttributes: [.font: ItemRowView.stampFont,
+                                 .foregroundColor: NSColor.tertiaryLabelColor,
+                                 .paragraphStyle: p])
         }
 
         guard showsNext else { return }
@@ -1013,7 +1092,25 @@ extension ItemRowView: NSTextFieldDelegate {
         if selector != #selector(NSResponder.deleteBackward(_:)) { disarm() }
         switch selector {
         case #selector(NSResponder.insertNewline(_:)):
-            delegate?.rowInsertAfter(itemID)
+            // Return in front of an item that already has text opens a line
+            // above it, the way it would in any editor: what you had written
+            // stays where you left it and moves down, rather than the blank
+            // line appearing on the far side of it.
+            //
+            // Everywhere else it still goes below — at the end of the text, in
+            // the middle of it, on an empty row, or in the ↳ line. An empty row
+            // is deliberately in that list: above and below are the same place
+            // when there is nothing to push, so the simpler path wins.
+            //
+            // Either way the caret lands in the new row, which is what makes
+            // the two cases feel like one key: an empty line appears where you
+            // are, and only the text you had already typed moves.
+            if !inNext, !textView.string.isEmpty,
+               textView.selectedRange() == NSRange(location: 0, length: 0) {
+                delegate?.rowInsertBefore(itemID)
+            } else {
+                delegate?.rowInsertAfter(itemID)
+            }
             return true
         case #selector(NSResponder.insertTab(_:)):
             // Tab hops between the item and its next line, both ways, so the

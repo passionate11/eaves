@@ -242,6 +242,15 @@ struct ChecklistItem: Codable, Identifiable, Equatable {
     /// `nil` means no line at all; `""` means the line exists but is still being
     /// typed, which is what makes Tab able to open an empty one.
     var next: String? = nil
+    /// When the item was made, shown small at the right-hand end of its row.
+    ///
+    /// Optional for the same reason `next` is, and the nil case is meaningful
+    /// rather than merely tolerated: the synthesized decoder ignores this
+    /// default and leaves the field nil for a notes.json written before it
+    /// existed, which is right — those items have no recorded creation time,
+    /// and a stamp reading "the day you updated the app" would be a fabrication
+    /// sitting in the UI looking like a fact. They show no stamp at all.
+    var created: Date? = Date()
 
     var nextText: String { next ?? "" }
     var hasNext: Bool { next != nil }

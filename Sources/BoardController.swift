@@ -1390,13 +1390,23 @@ extension BoardController: ItemRowDelegate {
         reload()
     }
 
-    func rowInsertAfter(_ id: UUID) {
+    func rowInsertAfter(_ id: UUID) { insertRow(around: id, offset: 1) }
+
+    func rowInsertBefore(_ id: UUID) { insertRow(around: id, offset: 0) }
+
+    /// Return made a new row. `offset` is 0 to put it above the given row and 1
+    /// to put it below; the caret moves into the new row either way, so from the
+    /// keyboard the only difference is which side of it the existing text lands.
+    private func insertRow(around id: UUID, offset: Int) {
         noteTyping()
         let new = ChecklistItem()
         commit {
             if let i = $0.items.firstIndex(where: { $0.id == id }) {
-                $0.items.insert(new, at: i + 1)
+                $0.items.insert(new, at: i + offset)
             } else {
+                // The row is gone from under us. Appending is the one placement
+                // that is still meaningful when there is nothing to be relative
+                // to, and it is what the caller expects: a new empty row exists.
                 $0.items.append(new)
             }
         }
