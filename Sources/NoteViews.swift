@@ -494,13 +494,43 @@ enum Stamp {
     }
 }
 
+/// A field kept aside for no purpose but to be asked how tall text would be.
+///
+/// Configured exactly like the fields it stands in for, and reused rather than
+/// made per call: measuring happens once per row per layout pass, and building
+/// a control each time would be the expensive part of it.
+private let textRuler: NSTextField = {
+    let f = NSTextField()
+    f.isBordered = false
+    f.drawsBackground = false
+    f.focusRingType = .none
+    f.cell?.usesSingleLineMode = false
+    f.cell?.wraps = true
+    f.cell?.isScrollable = false
+    f.maximumNumberOfLines = 0
+    return f
+}()
+
+/// Height a wrapping `NSTextField` needs for this text at this width.
+///
+/// Asked of an actual field rather than computed with `NSString.boundingRect`,
+/// because the two do not agree and the disagreement is not a rounding error. A
+/// cell keeps a small inset inside the frame it is handed, so it wraps slightly
+/// earlier than a bare string measurement predicts. At the widths where that
+/// tips one last word onto a second line — `验证devspace连接是否成功` at a
+/// 301pt window is one — `boundingRect` reports one line, the row is built one
+/// line short, and the field draws its final line below the row's bottom edge,
+/// where it is clipped to a row of half-glyphs.
+///
+/// This is right by construction instead of by a constant: same class, same
+/// cell settings, same answer. A fudge factor would have to be re-found every
+/// time a font, an inset, or a system version moved underneath it.
 func measuredHeight(_ text: String, font: NSFont, width: CGFloat) -> CGFloat {
-    let s = text.isEmpty ? " " : text
-    let rect = (s as NSString).boundingRect(
-        with: NSSize(width: max(10, width), height: .greatestFiniteMagnitude),
-        options: [.usesLineFragmentOrigin, .usesFontLeading],
-        attributes: [.font: font])
-    return ceil(rect.height)
+    textRuler.font = font
+    textRuler.stringValue = text.isEmpty ? " " : text
+    let bounds = NSRect(x: 0, y: 0, width: max(10, width), height: .greatestFiniteMagnitude)
+    guard let h = textRuler.cell?.cellSize(forBounds: bounds).height else { return font.pointSize }
+    return ceil(h)
 }
 
 func lerp(_ a: NSPoint, _ b: NSPoint, _ t: CGFloat) -> NSPoint {
