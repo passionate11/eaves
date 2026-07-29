@@ -39,7 +39,11 @@ final class TabItemView: FlippedView {
     var palette: Palette = .of(.auto, systemDark: false) { didSet { needsDisplay = true } }
 
     private var title = ""
+    /// What the counter draws — the numbers, or a tick once the list is done.
     private var progress = ""
+    /// What its width is reserved for, which stays the numbers either way so
+    /// that finishing a list moves nothing. See `Note.progressText`.
+    private var progressRoom = ""
     private var color: NoteColor = .blue
     private var active = false
     private var hovered = false
@@ -52,7 +56,8 @@ final class TabItemView: FlippedView {
     func configure(note: Note, active: Bool) {
         id = note.id
         title = note.title
-        progress = note.items.isEmpty ? "" : note.progressText
+        progress = note.items.isEmpty ? "" : note.progressLabel
+        progressRoom = note.items.isEmpty ? "" : note.progressText
         color = note.color
         self.active = active
         needsDisplay = true
@@ -151,8 +156,8 @@ final class TabItemView: FlippedView {
 
     /// Room the `3/7` suffix needs, so the title knows where to truncate.
     private var progWidth: CGFloat {
-        guard showsProgress, !progress.isEmpty else { return 0 }
-        return ceil((progress as NSString)
+        guard showsProgress, !progressRoom.isEmpty else { return 0 }
+        return ceil((progressRoom as NSString)
             .size(withAttributes: [.font: TabItemView.progFont]).width) + 6
     }
 
@@ -635,6 +640,11 @@ final class ItemRowView: FlippedView {
     /// hover wash stays out of the way.
     var lifted = false { didSet { needsDisplay = true } }
 
+    /// Draws a hairline along this row's top edge: everything from here down was
+    /// added today. Set by the controller, which is the only thing that can see
+    /// a row's neighbours — see `BoardController.dayBreakIndex`.
+    var showsDayBreak = false { didSet { needsDisplay = true } }
+
     deinit { armTimer?.invalidate(); tickTimer?.invalidate() }
 
     /// Noticky-style checkbox: a rounded square, empty and hairline-thin until
@@ -874,6 +884,14 @@ final class ItemRowView: FlippedView {
     /// drawn rather than folded into the text so the stored string stays
     /// exactly what the user typed.
     override func draw(_ dirtyRect: NSRect) {
+        // Before the washes, so a hovered row draws its wash over the line
+        // rather than the line cutting across it. Not while the row is lifted:
+        // a row in the air has left the order the line is a statement about.
+        if showsDayBreak, !lifted {
+            palette.hairline.setFill()
+            NSRect(x: M.pad, y: 0, width: max(0, bounds.width - M.pad * 2), height: 1).fill()
+        }
+
         if lifted {
             // A real surface, not a wash: while it moves, the row has to look
             // like it came off the page rather than like a highlighted line.

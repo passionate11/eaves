@@ -546,6 +546,33 @@ final class BoardController: NSObject, NSWindowDelegate {
         for (r, item) in zip(rows, current?.items ?? []) {
             r.configure(item: item, accent: color.accent)
         }
+        let brk = dayBreakIndex(current?.items ?? [])
+        for (i, r) in rows.enumerated() { r.showsDayBreak = (i == brk) }
+    }
+
+    /// Where to draw the line that says "everything below this started today",
+    /// or nil for "nowhere".
+    ///
+    /// Only when today's items form an unbroken run at the bottom of the list.
+    /// Rows can be dragged anywhere, so today is not guaranteed to be a block at
+    /// all, and a line across an interleaved list would assert a boundary that
+    /// is not there. Drawing nothing is the honest answer, and a hairline this
+    /// quiet is not missed on the days it cannot be earned.
+    ///
+    /// Rows written before the app recorded creation times count as older, which
+    /// is the one thing a missing timestamp definitely means.
+    private func dayBreakIndex(_ items: [ChecklistItem]) -> Int? {
+        let today = Calendar.current
+        let now = Date()
+        func isToday(_ item: ChecklistItem) -> Bool {
+            guard let c = item.created else { return false }
+            return today.isDate(c, inSameDayAs: now)
+        }
+        guard let first = items.firstIndex(where: isToday),
+              // Nothing above it to divide from: the whole list is today's.
+              first > 0,
+              items[first...].allSatisfy(isToday) else { return nil }
+        return first
     }
 
     func layoutContents() {

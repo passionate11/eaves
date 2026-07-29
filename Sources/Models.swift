@@ -379,7 +379,19 @@ struct Note: Codable, Identifiable, Equatable {
     }
 
     var doneCount: Int { items.filter(\.done).count }
+    var isComplete: Bool { !items.isEmpty && doneCount == items.count }
+
+    /// What the counter reserves room for. Always the numbers, even once the
+    /// list is finished and a tick is what actually gets drawn: a tab that
+    /// narrowed the instant you ticked the last box would shove every tab
+    /// beside it sideways, which is a lot of movement to celebrate finishing
+    /// something quietly. It keeps its width and changes what is in it.
     var progressText: String { "\(doneCount)/\(items.count)" }
+
+    /// What the counter shows. `8/8` is the one count that tells you nothing you
+    /// cannot see — every box on the list is ticked — so it stands aside for the
+    /// only mark this app makes in its own voice.
+    var progressLabel: String { isComplete ? "✓" : progressText }
 }
 
 // MARK: - Store

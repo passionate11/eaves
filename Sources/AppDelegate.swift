@@ -18,6 +18,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// which nobody is watching for — and a sweep that ran every few minutes
     /// would spend the whole day waking up to find nothing to do.
     private var sweepTimer: Timer?
+    /// Fires once at each midnight, and does nothing but redraw.
+    ///
+    /// The hairline in the list is a claim about what "today" means, and today
+    /// ends on its own schedule rather than on the user's. Without this, a
+    /// machine left running overnight would keep yesterday's line where it was
+    /// until something unrelated happened to trigger a redraw — which on a quiet
+    /// morning could be hours of the list saying something untrue.
+    private var midnightTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Before anything else: this is what makes ⌘Z / ⌘A / ⌘C / ⌘V work at
@@ -50,6 +58,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sweepTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in
             self?.sweep()
         }
+
+        scheduleMidnight()
+    }
+
+    /// Set for a few seconds past midnight rather than exactly on it, so a clock
+    /// that fires a hair early still lands on the new day.
+    ///
+    /// Rescheduled from its own callback instead of repeating on a 24-hour
+    /// interval, which would drift off midnight at every daylight-saving change
+    /// and never find its way back.
+    private func scheduleMidnight() {
+        midnightTimer?.invalidate()
+        guard let next = Calendar.current.nextDate(
+            after: Date(), matching: DateComponents(hour: 0, minute: 0, second: 5),
+            matchingPolicy: .nextTime) else { return }
+        let t = Timer(fireAt: next, interval: 0, target: self, selector: #selector(dayChanged),
+                      userInfo: nil, repeats: false)
+        // Common modes, so a midnight spent with a menu open or a row mid-drag
+        // is not a midnight the list sleeps through.
+        RunLoop.main.add(t, forMode: .common)
+        midnightTimer = t
+    }
+
+    @objc private func dayChanged() {
+        board?.refreshChrome()
+        scheduleMidnight()
     }
 
     /// Never while something is being typed into: the sweep rebuilds the list,
@@ -189,7 +223,7 @@ extension AppDelegate: NSMenuDelegate {
         } else {
             let selected = Store.shared.selected
             for n in notes {
-                let title = n.items.isEmpty ? n.title : "\(n.title)   \(n.progressText)"
+                let title = n.items.isEmpty ? n.title : "\(n.title)   \(n.progressLabel)"
                 let mi = NSMenuItem(title: title, action: #selector(focusNote(_:)), keyEquivalent: "")
                 mi.target = self
                 mi.representedObject = n.id
