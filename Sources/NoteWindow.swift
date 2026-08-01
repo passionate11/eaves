@@ -22,18 +22,6 @@ enum M {
     /// window back out. Wider than the sliver on purpose: the visual hint can be
     /// discreet as long as the target is forgiving.
     static let dockHotZone: CGFloat = 10
-    /// How close to a screen edge a drag must end to snap.
-    ///
-    /// Generous, because the gesture has to be discoverable. At the 26pt this
-    /// started as, a drag that stopped a finger's width from the edge did
-    /// nothing at all — and a feature that only fires when you already know its
-    /// exact threshold reads as a feature that is not there. This is roughly a
-    /// third of the window's own width: near enough to the edge that no other
-    /// intent is plausible, far enough that aiming for the edge is enough.
-    ///
-    /// Not the whole screen, deliberately. A note parked in the middle is a use
-    /// this app supports, and snapping from anywhere would take it away.
-    static let snapDistance: CGFloat = 120
     static let fadeAlpha: CGFloat = 0.96
     /// A tab never shrinks below this; past that point the strip clips.
     static let tabMinWidth: CGFloat = 46

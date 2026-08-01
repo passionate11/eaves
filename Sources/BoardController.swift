@@ -751,13 +751,39 @@ final class BoardController: NSObject, NSWindowDelegate {
         (window.screen ?? NSScreen.main ?? NSScreen.screens[0]).visibleFrame
     }
 
-    /// Distance from the window to each screen edge, nearest first. Negative
-    /// means the window has already been dragged past that edge.
+    /// The screen edges ranked by how near the window's *centre* is to each,
+    /// nearest first.
+    ///
+    /// Measured from the centre rather than from the matching frame edge, which
+    /// is what this used to do and what made docking unpredictable. A window
+    /// docked to the top is flush with the top — distance zero, and while
+    /// retracted a large negative number — so by frame-edge distance the top won
+    /// every comparison it was in, however far to the right the window had been
+    /// dragged. That is why dragging a top-docked note to the right side sent it
+    /// back to the top, and why one already on the right refused to re-tuck: the
+    /// answer never depended on where the note had been put.
+    ///
+    /// A centre is somewhere the window actually is, whether it is docked, half
+    /// off-screen, or mid-slide. Halved on the vertical axis because a landscape
+    /// screen is wider than it is tall, so raw centre distances would make the
+    /// top and bottom edges win over most of it; this makes the four edges divide
+    /// the screen into rough quarters, which is how it looks to the eye.
     private func edgeDistances() -> [(DockEdge, CGFloat)] {
-        let sf = screenFrame(), f = window.frame
-        return [(.left, f.minX - sf.minX), (.right, sf.maxX - f.maxX),
-                (.top, sf.maxY - f.maxY), (.bottom, f.minY - sf.minY)]
-            .sorted { $0.1 < $1.1 }
+        let sf = screenFrame()
+        let c = NSPoint(x: window.frame.midX, y: window.frame.midY)
+        let aspect = sf.height > 0 ? sf.width / sf.height : 1
+        // Listed right-first so that the dead centre of the screen — where all
+        // four distances are exactly equal — resolves to the right edge rather
+        // than to whichever way a sort happened to fall. A tie has to have an
+        // answer, and for a note this is the side to be on.
+        let order: [(DockEdge, CGFloat)] = [
+            (.right, sf.maxX - c.x), (.left, c.x - sf.minX),
+            (.top, (sf.maxY - c.y) * aspect), (.bottom, (c.y - sf.minY) * aspect),
+        ]
+        // A stable sort, so equal distances keep the order above.
+        return order.enumerated()
+            .sorted { ($0.element.1, $0.offset) < ($1.element.1, $1.offset) }
+            .map(\.element)
     }
 
     /// Whether another display sits immediately beyond `edge`, in the band the
@@ -846,63 +872,46 @@ final class BoardController: NSObject, NSWindowDelegate {
         refreshChrome()
     }
 
-    /// Called when a drag in the tab strip ends: snap to an edge if it landed near
-    /// one. A click that never moved the window does not reach here.
+    /// Called when a drag in the tab strip ends: dock to whichever edge the
+    /// window is now nearest. A click that never moved the window does not reach
+    /// here.
     ///
-    /// `from` is where the window started, and it decides ties. Distance alone
-    /// is not enough once the window is already docked: a note tucked into the
-    /// top edge is sitting *at* that edge, so dragging it to the right side
-    /// leaves it nearer the top than the right and it snapped straight back up.
-    /// The hand went sideways and the window went up.
-    func evaluateDock(from: NSPoint? = nil) {
+    /// Nearest edge, unconditionally — no distance threshold, no memory of where
+    /// the drag started, no preference for the direction the hand went. Three
+    /// attempts at cleverer rules each fixed the case in front of me and broke
+    /// another: a threshold meant letting go early left the note on its old
+    /// edge, and direction-tracking meant a drag whose dominant axis was not the
+    /// one I guessed went somewhere unasked-for. Every one of them was a rule
+    /// the user had to know to predict the outcome.
+    ///
+    /// The cost is real and worth naming: the window can no longer float in the
+    /// middle of the screen. Drop it anywhere and it goes to an edge. That was
+    /// the trade asked for, and it buys a rule with nothing to learn — the note
+    /// ends up on the side you put it on.
+    func evaluateDock() {
         // Nearest *dockable* edge, so a drag toward the boundary with another
         // display does not arm a dock that could never hide the window.
         // Dragging across that boundary is how the note gets moved to the other
         // screen, and that has to keep working.
-        let candidates = dockableEdges().filter { $0.1 <= M.snapDistance }
-        guard let (edge, _) = pick(candidates, movedFrom: from) else {
+        guard let (edge, _) = dockableEdges().first else {
+            // Nowhere to dock: every edge adjoins another display. Leave it
+            // floating, and make sure it is still grabbable.
             if Store.shared.dock != .none { Store.shared.dock = .none; isRetracted = false }
-            // A window shoved past a shared edge would otherwise sit there with
-            // nothing left to grab.
             clampOnScreen()
             commitFrame()
             refreshChrome()
             return
         }
         commitFrame()
+        // Set unconditionally rather than only on a change: the window has just
+        // been dragged off its resting place, so even the same edge needs the
+        // retract below to put it back. This is the "docked right, dragged
+        // flush against the right edge, and it just sat there" case — the edge
+        // had not changed, so nothing re-tucked it.
         Store.shared.dock = edge
         isRetracted = false
         retract(animated: true)
         refreshChrome()
-    }
-
-    /// Chooses among the edges close enough to snap to.
-    ///
-    /// The nearest one, except that an edge the drag actually moved *towards*
-    /// beats one it merely stayed close to. Only a decisive movement counts —
-    /// `slop` is there so that nudging a docked window a few points along its
-    /// own edge is not read as an attempt to leave it.
-    ///
-    /// With no starting point (the settings menu, a screen change) this is just
-    /// "nearest", which is what it always was.
-    private func pick(_ candidates: [(DockEdge, CGFloat)],
-                      movedFrom from: NSPoint?) -> (DockEdge, CGFloat)? {
-        guard let from = from, candidates.count > 1 else { return candidates.first }
-        let to = window.frame.origin
-        let dx = to.x - from.x, dy = to.y - from.y
-        let slop: CGFloat = 12
-        // The axis the hand actually travelled along. A diagonal drag resolves
-        // to its dominant direction, which is the one the eye read it as.
-        let towards: DockEdge?
-        if abs(dx) > abs(dy), abs(dx) > slop {
-            towards = dx > 0 ? .right : .left
-        } else if abs(dy) > slop {
-            towards = dy > 0 ? .top : .bottom
-        } else {
-            towards = nil
-        }
-        if let t = towards, let hit = candidates.first(where: { $0.0 == t }) { return hit }
-        return candidates.first
     }
 
     func undock() {
@@ -1342,7 +1351,7 @@ extension BoardController: TabBarDelegate {
 
     func tabBarToggleCollapse() { toggleCollapse() }
 
-    func tabBarDidFinishDrag(from: NSPoint) { evaluateDock(from: from) }
+    func tabBarDidFinishDrag() { evaluateDock() }
 
     func tabBarHide() { hideToEdge() }
 
