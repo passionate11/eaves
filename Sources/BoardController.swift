@@ -848,13 +848,19 @@ final class BoardController: NSObject, NSWindowDelegate {
 
     /// Called when a drag in the tab strip ends: snap to an edge if it landed near
     /// one. A click that never moved the window does not reach here.
-    func evaluateDock() {
+    ///
+    /// `from` is where the window started, and it decides ties. Distance alone
+    /// is not enough once the window is already docked: a note tucked into the
+    /// top edge is sitting *at* that edge, so dragging it to the right side
+    /// leaves it nearer the top than the right and it snapped straight back up.
+    /// The hand went sideways and the window went up.
+    func evaluateDock(from: NSPoint? = nil) {
         // Nearest *dockable* edge, so a drag toward the boundary with another
         // display does not arm a dock that could never hide the window.
         // Dragging across that boundary is how the note gets moved to the other
         // screen, and that has to keep working.
-        let nearest = dockableEdges().first
-        guard let (edge, dist) = nearest, dist <= M.snapDistance else {
+        let candidates = dockableEdges().filter { $0.1 <= M.snapDistance }
+        guard let (edge, _) = pick(candidates, movedFrom: from) else {
             if Store.shared.dock != .none { Store.shared.dock = .none; isRetracted = false }
             // A window shoved past a shared edge would otherwise sit there with
             // nothing left to grab.
@@ -868,6 +874,35 @@ final class BoardController: NSObject, NSWindowDelegate {
         isRetracted = false
         retract(animated: true)
         refreshChrome()
+    }
+
+    /// Chooses among the edges close enough to snap to.
+    ///
+    /// The nearest one, except that an edge the drag actually moved *towards*
+    /// beats one it merely stayed close to. Only a decisive movement counts —
+    /// `slop` is there so that nudging a docked window a few points along its
+    /// own edge is not read as an attempt to leave it.
+    ///
+    /// With no starting point (the settings menu, a screen change) this is just
+    /// "nearest", which is what it always was.
+    private func pick(_ candidates: [(DockEdge, CGFloat)],
+                      movedFrom from: NSPoint?) -> (DockEdge, CGFloat)? {
+        guard let from = from, candidates.count > 1 else { return candidates.first }
+        let to = window.frame.origin
+        let dx = to.x - from.x, dy = to.y - from.y
+        let slop: CGFloat = 12
+        // The axis the hand actually travelled along. A diagonal drag resolves
+        // to its dominant direction, which is the one the eye read it as.
+        let towards: DockEdge?
+        if abs(dx) > abs(dy), abs(dx) > slop {
+            towards = dx > 0 ? .right : .left
+        } else if abs(dy) > slop {
+            towards = dy > 0 ? .top : .bottom
+        } else {
+            towards = nil
+        }
+        if let t = towards, let hit = candidates.first(where: { $0.0 == t }) { return hit }
+        return candidates.first
     }
 
     func undock() {
@@ -1317,7 +1352,7 @@ extension BoardController: TabBarDelegate {
 
     func tabBarToggleCollapse() { toggleCollapse() }
 
-    func tabBarDidFinishDrag() { evaluateDock() }
+    func tabBarDidFinishDrag(from: NSPoint) { evaluateDock(from: from) }
 
     func tabBarHide() { hideToEdge() }
 

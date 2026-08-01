@@ -6,8 +6,10 @@ protocol TabBarDelegate: AnyObject {
     func tabBarSelect(_ id: UUID)
     func tabBarToggleCollapse()
     /// A drag that started in the strip has ended — the window may need to dock.
-    /// Only called when the window actually moved.
-    func tabBarDidFinishDrag()
+    /// Only called when the window actually moved. `from` is where the window
+    /// was when the drag began, which is what tells the controller which
+    /// direction the hand went.
+    func tabBarDidFinishDrag(from: NSPoint)
     /// The hide button was pressed: tuck the window into the screen edge.
     func tabBarHide()
     func tabBarShowMenu(for id: UUID?, from view: NSView)
@@ -15,15 +17,16 @@ protocol TabBarDelegate: AnyObject {
     func tabBarRename(_ id: UUID, to title: String)
 }
 
-/// Runs `body` and reports whether the window moved while it ran. A press in the
-/// strip both selects and may drag, so this is what separates the two: a click
-/// that never moved the window must not be read as a drag, or switching tabs
-/// near a screen edge would silently dock the window.
-private func movedWindow(_ view: NSView, _ body: () -> Void) -> Bool {
+/// Runs `body` and reports where the window started, if it moved while it ran.
+/// A press in the strip both selects and may drag, so this is what separates the
+/// two: a click that never moved the window must not be read as a drag, or
+/// switching tabs near a screen edge would silently dock the window.
+private func movedWindow(_ view: NSView, _ body: () -> Void) -> NSPoint? {
     let before = view.window?.frame.origin ?? .zero
     body()
     let after = view.window?.frame.origin ?? .zero
-    return abs(after.x - before.x) > 2 || abs(after.y - before.y) > 2
+    let moved = abs(after.x - before.x) > 2 || abs(after.y - before.y) > 2
+    return moved ? before : nil
 }
 
 /// One tab. Drawn rather than composed from controls, because a tab has to
@@ -185,8 +188,9 @@ final class TabItemView: FlippedView {
             return
         }
         delegate?.tabBarSelect(id)
-        let moved = movedWindow(self) { window?.performDrag(with: event) }
-        if moved { delegate?.tabBarDidFinishDrag() }
+        if let from = movedWindow(self, { window?.performDrag(with: event) }) {
+            delegate?.tabBarDidFinishDrag(from: from)
+        }
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -421,8 +425,9 @@ final class TabBarView: FlippedView {
             delegate?.tabBarToggleCollapse()
             return
         }
-        let moved = movedWindow(self) { window?.performDrag(with: event) }
-        if moved { delegate?.tabBarDidFinishDrag() }
+        if let from = movedWindow(self, { window?.performDrag(with: event) }) {
+            delegate?.tabBarDidFinishDrag(from: from)
+        }
     }
 
     override func rightMouseDown(with event: NSEvent) {
