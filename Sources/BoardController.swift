@@ -887,11 +887,12 @@ final class BoardController: NSObject, NSWindowDelegate {
     /// Where the window sits when slid out — flush against its edge.
     private func expandedOrigin() -> NSPoint {
         let sf = screenFrame(), f = window.frame
+        let free = freeAxisOrigin()
         switch Store.shared.dock {
-        case .right: return NSPoint(x: sf.maxX - f.width, y: f.origin.y)
-        case .left: return NSPoint(x: sf.minX, y: f.origin.y)
-        case .top: return NSPoint(x: f.origin.x, y: sf.maxY - f.height)
-        case .bottom: return NSPoint(x: f.origin.x, y: sf.minY)
+        case .right: return NSPoint(x: sf.maxX - f.width, y: free.y)
+        case .left: return NSPoint(x: sf.minX, y: free.y)
+        case .top: return NSPoint(x: free.x, y: sf.maxY - f.height)
+        case .bottom: return NSPoint(x: free.x, y: sf.minY)
         case .none: return f.origin
         }
     }
@@ -899,13 +900,39 @@ final class BoardController: NSObject, NSWindowDelegate {
     /// Where it sits when tucked away — everything off-screen but `M.sliver`.
     private func retractedOrigin() -> NSPoint {
         let sf = screenFrame(), f = window.frame
+        let free = freeAxisOrigin()
         switch Store.shared.dock {
-        case .right: return NSPoint(x: sf.maxX - M.sliver, y: f.origin.y)
-        case .left: return NSPoint(x: sf.minX - f.width + M.sliver, y: f.origin.y)
-        case .top: return NSPoint(x: f.origin.x, y: sf.maxY - M.sliver)
-        case .bottom: return NSPoint(x: f.origin.x, y: sf.minY + M.sliver - f.height)
+        case .right: return NSPoint(x: sf.maxX - M.sliver, y: free.y)
+        case .left: return NSPoint(x: sf.minX - f.width + M.sliver, y: free.y)
+        case .top: return NSPoint(x: free.x, y: sf.maxY - M.sliver)
+        case .bottom: return NSPoint(x: free.x, y: sf.minY + M.sliver - f.height)
         case .none: return f.origin
         }
+    }
+
+    /// The current origin with both axes pulled back onto the screen, for the
+    /// axis a dock edge does not control to use.
+    ///
+    /// Docking sets one coordinate and leaves the other where it was, which is
+    /// right — sliding to the right edge should not also move the note up the
+    /// screen. But "where it was" is only safe if it was somewhere visible, and
+    /// after a retract it is not: a window tucked into the right edge is sitting
+    /// at x = screen width − 3. Dock that to the top and the old code carried
+    /// that x across verbatim, so the window slid up to the top edge while still
+    /// three pixels from the right one and retracted into a 3×3 corner. Nothing
+    /// was left to grab, and switching back to the right edge only fixed the
+    /// axis that was already fine — the window came out at full width and three
+    /// pixels tall, which is why it stayed lost.
+    ///
+    /// Clamped rather than reset to a default, so a note deliberately parked low
+    /// on the screen stays low when it is docked to the side.
+    private func freeAxisOrigin() -> NSPoint {
+        let sf = screenFrame(), f = window.frame
+        // `max` on the outside, so a window taller or wider than the screen
+        // lands at the top-left corner rather than inverting the clamp and
+        // hanging off the far side.
+        return NSPoint(x: max(sf.minX, min(f.origin.x, sf.maxX - f.width)),
+                       y: max(sf.minY, min(f.origin.y, sf.maxY - f.height)))
     }
 
     func retract(animated: Bool) {
