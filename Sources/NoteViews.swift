@@ -5,25 +5,11 @@ import AppKit
 protocol TabBarDelegate: AnyObject {
     func tabBarSelect(_ id: UUID)
     func tabBarToggleCollapse()
-    /// A drag that started in the strip has ended — the window may need to dock.
-    /// Only called when the window actually moved.
-    func tabBarDidFinishDrag()
     /// The hide button was pressed: tuck the window into the screen edge.
     func tabBarHide()
     func tabBarShowMenu(for id: UUID?, from view: NSView)
     func tabBarAddNote()
     func tabBarRename(_ id: UUID, to title: String)
-}
-
-/// Runs `body` and reports whether the window moved while it ran. A press in the
-/// strip both selects and may drag, so this is what separates the two: a click
-/// that never moved the window must not be read as a drag, or switching tabs
-/// near a screen edge would silently dock the window.
-private func movedWindow(_ view: NSView, _ body: () -> Void) -> Bool {
-    let before = view.window?.frame.origin ?? .zero
-    body()
-    let after = view.window?.frame.origin ?? .zero
-    return abs(after.x - before.x) > 2 || abs(after.y - before.y) > 2
 }
 
 /// One tab. Drawn rather than composed from controls, because a tab has to
@@ -185,9 +171,10 @@ final class TabItemView: FlippedView {
             return
         }
         delegate?.tabBarSelect(id)
-        if movedWindow(self, { window?.performDrag(with: event) }) {
-            delegate?.tabBarDidFinishDrag()
-        }
+        // Docking is decided in `windowDidMove` once the window comes to rest,
+        // not here: `performDrag` returns while the window is still at its
+        // starting point, so nothing useful can be measured across this call.
+        window?.performDrag(with: event)
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -422,9 +409,10 @@ final class TabBarView: FlippedView {
             delegate?.tabBarToggleCollapse()
             return
         }
-        if movedWindow(self, { window?.performDrag(with: event) }) {
-            delegate?.tabBarDidFinishDrag()
-        }
+        // Docking is decided in `windowDidMove` once the window comes to rest,
+        // not here: `performDrag` returns while the window is still at its
+        // starting point, so nothing useful can be measured across this call.
+        window?.performDrag(with: event)
     }
 
     override func rightMouseDown(with event: NSEvent) {

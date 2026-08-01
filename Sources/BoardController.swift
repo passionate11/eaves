@@ -278,6 +278,7 @@ final class BoardRootView: NSVisualEffectView {
 /// Owns the single shared window. Every note is a tab in it; only the selected
 /// note's checklist is built into views, so switching tabs is a rebuild of the
 /// body rather than a window swap.
+
 final class BoardController: NSObject, NSWindowDelegate {
     let window: NoteWindow
 
@@ -299,6 +300,12 @@ final class BoardController: NSObject, NSWindowDelegate {
     private var rows: [ItemRowView] = []
     private var mouseInside = false
     private(set) var isRetracted = false
+
+    /// Fires once after the window stops moving, to decide where it should dock.
+    private var settleTimer: Timer?
+    /// True while this class is the one moving the window, so its own moves do
+    /// not come back round as "the user dragged it somewhere".
+    private var isPositioning = false
 
     /// True while any field in the window has a caret in it. `NSText` rather
     /// than the field itself because what holds first-responder status during
@@ -874,7 +881,7 @@ final class BoardController: NSObject, NSWindowDelegate {
         isRetracted = false
         var f = window.frame
         f.origin = expandedOrigin()
-        window.setFrame(f, display: true)
+        positioning(0.05) { window.setFrame(f, display: true) }
 
         retract(animated: true)
         refreshChrome()
@@ -931,7 +938,7 @@ final class BoardController: NSObject, NSWindowDelegate {
         Store.shared.dock = .none
         isRetracted = false
         window.hasShadow = true
-        window.setFrame(f, display: true, animate: true)
+        positioning(0.4) { window.setFrame(f, display: true, animate: true) }
         commitFrame()
         refreshChrome()
     }
@@ -1022,14 +1029,27 @@ final class BoardController: NSObject, NSWindowDelegate {
     }
 
     private func setFrame(_ f: NSRect, animated: Bool) {
-        if animated {
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.18
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                window.animator().setFrame(f, display: true)
+        positioning(animated ? 0.45 : 0.1) {
+            if animated {
+                NSAnimationContext.runAnimationGroup { ctx in
+                    ctx.duration = 0.18
+                    ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                    window.animator().setFrame(f, display: true)
+                }
+            } else {
+                positioning(0.05) { window.setFrame(f, display: true) }
             }
-        } else {
-            window.setFrame(f, display: true)
+        }
+    }
+
+    /// Marks `body` as this class moving the window, so the moves it posts are
+    /// not mistaken for the user dragging it. `settle` is how long afterwards to
+    /// keep ignoring them — long enough to cover an animation still in flight.
+    private func positioning(_ settle: TimeInterval, _ body: () -> Void) {
+        isPositioning = true
+        body()
+        DispatchQueue.main.asyncAfter(deadline: .now() + settle) {
+            self.isPositioning = false
         }
     }
 
@@ -1327,6 +1347,30 @@ final class BoardController: NSObject, NSWindowDelegate {
     func windowDidResignKey(_ notification: Notification) { updateAlpha() }
     func windowDidResize(_ notification: Notification) { layoutContents() }
 
+    /// The window moved — by a drag, or by anything else.
+    ///
+    /// This, rather than the return of `performDrag`, is what tells us a drag
+    /// happened. `performDrag` returns while the window is still at its starting
+    /// point: comparing the frame across the call reported "did not move" for
+    /// every real drag, so the docking code was never reached at all. Whatever it
+    /// does internally, it does not wait for the window to come to rest.
+    ///
+    /// Coalesced with a short timer because a drag posts this continuously, and
+    /// docking mid-gesture would fight the hand. The timer restarts on each
+    /// move, so it fires once, shortly after the window finally stops.
+    func windowDidMove(_ notification: Notification) {
+        // Not while the window is being put somewhere by this class — docking,
+        // retracting and sliding out all move it, and re-entering the docking
+        // decision from inside one of those is how a loop starts.
+        guard !isPositioning else { return }
+        settleTimer?.invalidate()
+        settleTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: false) {
+            [weak self] _ in
+            self?.settleTimer = nil
+            self?.evaluateDock()
+        }
+    }
+
     /// Hands out one shared field editor with undo switched on.
     ///
     /// `NSTextField` does not support undo through its own machinery — editing
@@ -1368,8 +1412,6 @@ extension BoardController: TabBarDelegate {
     func tabBarSelect(_ id: UUID) { select(id) }
 
     func tabBarToggleCollapse() { toggleCollapse() }
-
-    func tabBarDidFinishDrag() { evaluateDock() }
 
     func tabBarHide() { hideToEdge() }
 
