@@ -267,16 +267,6 @@ struct ChecklistItem: Codable, Identifiable, Equatable {
 enum DockEdge: String, Codable, CaseIterable {
     case none, left, right, top, bottom
 
-    var label: String {
-        switch self {
-        case .none: return L("edge.none")
-        case .left: return L("edge.left")
-        case .right: return L("edge.right")
-        case .top: return L("edge.top")
-        case .bottom: return L("edge.bottom")
-        }
-    }
-
     /// The SF Symbol for "tuck away in this direction".
     var arrowSymbol: String {
         switch self {

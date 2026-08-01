@@ -46,8 +46,7 @@
 "settings.floatOnTop"           = "Float on Top";
 "settings.floatOnTop.tip"       = "Stays above other apps, including full-screen ones";
 "settings.appearance"           = "APPEARANCE";
-"settings.dockEdge"             = "DOCK EDGE";
-"settings.dockEdge.blocked.tip" = "Another display sits on this side — tucking away here would walk the note onto it";
+"menu.tuckAway.blocked.tip"     = "Every edge here adjoins another display — tucking away would walk the note onto it";
 "settings.autoHide"             = "Tuck Away When Done";
 "settings.autoHide.tip"         = "Once docked, retracts when the pointer leaves and typing stops";
 "settings.hideSpeed"            = "RETRACT SPEED";
@@ -76,11 +75,6 @@
 "theme.glass.detail"    = "Translucent — the desktop shows through";
 
 /* --- Dock edges. Menu labels, so title case. --- */
-"edge.none"     = "Don't Dock";
-"edge.left"     = "Left";
-"edge.right"    = "Right";
-"edge.top"      = "Top";
-"edge.bottom"   = "Bottom";
 
 /* Full sentences rather than "Tuck into the %@ edge": languages that inflect or
  * capitalise differently cannot fix that construction from the label alone. */

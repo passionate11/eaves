@@ -1095,22 +1095,6 @@ final class BoardController: NSObject, NSWindowDelegate {
         }
 
         menu.addItem(.separator())
-        menu.addItem(header(L("settings.dockEdge")))
-        for e in DockEdge.allCases {
-            let mi = add(menu, "  " + e.label, #selector(pickEdge(_:)))
-            mi.representedObject = e.rawValue
-            mi.state = (e == Store.shared.dock) ? .on : .off
-            // An edge shared with another display cannot hide anything — sliding
-            // out there just walks the note onto the next screen. Shown but
-            // disabled, with the reason attached, so a two-monitor setup does
-            // not look like the option silently went missing.
-            if e != .none, hasNeighbor(beyond: e) {
-                mi.isEnabled = false
-                mi.toolTip = L("settings.dockEdge.blocked.tip")
-            }
-        }
-
-        menu.addItem(.separator())
         let auto = add(menu, L("settings.autoHide"), #selector(toggleAutoHide))
         auto.state = Store.shared.autoHide ? .on : .off
         auto.toolTip = L("settings.autoHide.tip")
@@ -1181,8 +1165,20 @@ final class BoardController: NSObject, NSWindowDelegate {
         setItem.submenu = settingsMenu()
         menu.addItem(setItem)
 
-        add(menu, L(Store.shared.dock == .none ? "menu.tuckAway" : "menu.undock"),
-            #selector(toggleDock))
+        // The one remaining way to dock from a menu. Which edge is not asked:
+        // it is wherever the note already is. Choosing an edge by name was a
+        // question with a better answer available — the window's own position —
+        // and the picker that asked it is gone.
+        let dockItem = add(menu, L(Store.shared.dock == .none ? "menu.tuckAway" : "menu.undock"),
+                           #selector(toggleDock))
+        // Nowhere to tuck into: every edge this window can reach is shared with
+        // another display, where sliding out would walk the note onto it rather
+        // than hide it. Disabled with the reason attached, so it does not look
+        // like the command silently failed.
+        if Store.shared.dock == .none, dockableEdges().isEmpty {
+            dockItem.isEnabled = false
+            dockItem.toolTip = L("menu.tuckAway.blocked.tip")
+        }
 
         if let id, Store.shared.notes.count > 0 {
             menu.addItem(.separator())
@@ -1205,12 +1201,6 @@ final class BoardController: NSObject, NSWindowDelegate {
               let c = NoteColor(rawValue: raw) else { return }
         commit { $0.color = c }
         refreshChrome()
-    }
-
-    @objc private func pickEdge(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String,
-              let e = DockEdge(rawValue: raw) else { return }
-        if e == .none { undock() } else { hideToEdge(e) }
     }
 
     @objc private func pickTheme(_ sender: NSMenuItem) {

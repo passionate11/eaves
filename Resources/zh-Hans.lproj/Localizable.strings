@@ -38,8 +38,7 @@
 "settings.floatOnTop"           = "浮动在最前面";
 "settings.floatOnTop.tip"       = "盖在其他 App 上面，包括全屏窗口";
 "settings.appearance"           = "外观";
-"settings.dockEdge"             = "吸边位置";
-"settings.dockEdge.blocked.tip" = "这一边接着另一台显示器，收起来会跑到隔壁屏幕上";
+"menu.tuckAway.blocked.tip"     = "这台机器的每一边都接着另一台显示器，收起来会跑到隔壁屏幕上";
 "settings.autoHide"             = "写完自动收起";
 "settings.autoHide.tip"         = "吸边后，鼠标离开且停止输入才会收起";
 "settings.hideSpeed"            = "收起速度";
@@ -68,11 +67,6 @@
 "theme.glass.detail"    = "半透明毛玻璃，桌面透出来";
 
 /* --- 吸边方向 --- */
-"edge.none"     = "不吸边";
-"edge.left"     = "左边";
-"edge.right"    = "右边";
-"edge.top"      = "上边";
-"edge.bottom"   = "下边";
 
 "tuck.left"     = "收进左边";
 "tuck.right"    = "收进右边";
