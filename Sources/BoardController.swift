@@ -845,13 +845,18 @@ final class BoardController: NSObject, NSWindowDelegate {
     }
 
 
-    /// The edge the hide button would tuck the window into: the one it is already
-    /// docked to, otherwise whichever reachable edge is nearest. Edges with
-    /// another display behind them are skipped — sliding into one of those does
-    /// not hide anything.
+    /// The edge the hide button would tuck the window into: whichever reachable
+    /// edge the window is nearest. Edges with another display behind them are
+    /// skipped — sliding into one of those does not hide anything.
+    ///
+    /// Deliberately does *not* short-circuit to the edge already docked to. It
+    /// used to, and that one line outranked everything else: the note stayed on
+    /// whichever edge it was first put on, however far it was afterwards dragged,
+    /// because the current dock was consulted instead of the window's position.
+    /// Fixing how the nearest edge is measured could not help while this was
+    /// returning before that measurement ran.
     private var hideEdge: DockEdge {
-        if Store.shared.dock != .none { return Store.shared.dock }
-        return dockableEdges().first?.0 ?? .right
+        dockableEdges().first?.0 ?? .right
     }
 
     /// The hide button, and the menu. Tucks the window into `edge`, or into the
@@ -860,14 +865,17 @@ final class BoardController: NSObject, NSWindowDelegate {
         let target = edge ?? hideEdge
         guard target != .none else { undock(); return }
 
-        if Store.shared.dock != target {
-            if Store.shared.dock == .none { commitFrame() }  // remember where it floated
-            Store.shared.dock = target
-            isRetracted = false
-            var f = window.frame
-            f.origin = expandedOrigin()
-            window.setFrame(f, display: true)
-        }
+        // Re-seated whether or not the edge changed. Only doing this on a change
+        // was the other half of "it will not go anywhere": after a drag the
+        // window is wherever the hand left it, so even the same edge needs the
+        // frame put back against it before the retract below slides it out.
+        if Store.shared.dock == .none { commitFrame() }  // remember where it floated
+        Store.shared.dock = target
+        isRetracted = false
+        var f = window.frame
+        f.origin = expandedOrigin()
+        window.setFrame(f, display: true)
+
         retract(animated: true)
         refreshChrome()
     }
@@ -979,8 +987,17 @@ final class BoardController: NSObject, NSWindowDelegate {
                        y: max(sf.minY, min(f.origin.y, sf.maxY - f.height)))
     }
 
+    /// Slides the window off its docked edge, leaving only the sliver.
+    ///
+    /// Runs even when `isRetracted` is already set, which it often is: a docked
+    /// note is retracted, slides out under the cursor, and gets dragged — and the
+    /// flag never went false, because sliding out under the cursor is `expand`
+    /// but being dragged is not. Returning early on the flag meant a window that
+    /// had been dragged flush against its edge simply stayed there in full view.
+    /// The flag says where the window is meant to be, so the way to honour it is
+    /// to move the window, not to skip the move.
     func retract(animated: Bool) {
-        guard Store.shared.dock != .none, !isRetracted else { return }
+        guard Store.shared.dock != .none else { return }
         isRetracted = true
         // The drop shadow of an off-screen window spills back onto the desktop
         // as a grey band several times wider than the sliver itself — which is
@@ -988,6 +1005,7 @@ final class BoardController: NSObject, NSWindowDelegate {
         window.hasShadow = false
         var f = window.frame
         f.origin = retractedOrigin()
+        guard f.origin != window.frame.origin else { return }
         setFrame(f, animated: animated)
     }
 
