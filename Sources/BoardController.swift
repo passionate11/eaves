@@ -298,6 +298,14 @@ final class BoardController: NSObject, NSWindowDelegate {
     ]
 
     private var rows: [ItemRowView] = []
+    /// True while `reload()` is tearing the row views down and building new
+    /// ones. Removing a field that holds the field editor makes AppKit fire
+    /// `controlTextDidEndEditing` *synchronously*, and that callback's job is to
+    /// drop an untouched step — so it would mutate the model and call `reload()`
+    /// again from inside this one, leaving the model changed twice and the rows
+    /// array replaced mid-flight. The row delegate consults this and declines to
+    /// act while it is set.
+    private var reloading = false
     private var mouseInside = false
     private(set) var isRetracted = false
 
@@ -523,6 +531,21 @@ final class BoardController: NSObject, NSWindowDelegate {
 
     /// Full rebuild: tab strip plus the selected note's rows.
     func reload() {
+        // Give up the caret before any view is torn down, and hold the guard
+        // across the whole rebuild.
+        //
+        // Removing a view that holds the field editor makes AppKit end editing
+        // synchronously, and `controlTextDidEndEditing` drops a step that was
+        // never typed into — which is a model change and another `reload()`,
+        // raised from inside this one. Surrendering focus first means that
+        // callback arrives here, at the top, where the flag stops it; and doing
+        // it deliberately rather than as a side effect of `removeFromSuperview`
+        // means the text in the field is committed rather than discarded.
+        let wasReloading = reloading
+        reloading = true
+        defer { reloading = wasReloading }
+        if window.firstResponder is NSTextView { window.makeFirstResponder(nil) }
+
         rows.forEach { $0.removeFromSuperview() }
         rows = (current?.items ?? []).map { item in
             let r = ItemRowView()
@@ -887,22 +910,22 @@ final class BoardController: NSObject, NSWindowDelegate {
         refreshChrome()
     }
 
-    /// Called when a drag in the tab strip ends: dock to whichever edge the
-    /// window is now nearest. A click that never moved the window does not reach
-    /// here.
+    /// Called when a drag in the tab strip ends: tuck the window into the edge
+    /// it was left against, or leave it exactly where it was dropped. A click
+    /// that never moved the window does not reach here.
     ///
-    /// Nearest edge, unconditionally — no distance threshold, no memory of where
-    /// the drag started, no preference for the direction the hand went. Three
-    /// attempts at cleverer rules each fixed the case in front of me and broke
-    /// another: a threshold meant letting go early left the note on its old
-    /// edge, and direction-tracking meant a drag whose dominant axis was not the
-    /// one I guessed went somewhere unasked-for. Every one of them was a rule
-    /// the user had to know to predict the outcome.
+    /// Two questions and no more — which edge is nearest, and whether the window
+    /// is within `M.dockReach` of it. No memory of where the drag started and no
+    /// preference for the direction the hand went: direction-tracking was tried,
+    /// and a drag whose dominant axis was not the one guessed went somewhere
+    /// unasked-for.
     ///
-    /// The cost is real and worth naming: the window can no longer float in the
-    /// middle of the screen. Drop it anywhere and it goes to an edge. That was
-    /// the trade asked for, and it buys a rule with nothing to learn — the note
-    /// ends up on the side you put it on.
+    /// The distance test was tried once before and taken back out, because out
+    /// of reach was made to mean "keep the edge it already had": letting go
+    /// halfway across the screen sent the note back where it came from, which
+    /// reads as the window refusing to move. Out of reach has to mean undocked.
+    /// With that half in place the rule is still one sentence — near an edge
+    /// tucks in, anywhere else stays put.
     func evaluateDock() {
         // Nearest *dockable* edge, so a drag toward the boundary with another
         // display does not arm a dock that could never hide the window.
@@ -918,6 +941,18 @@ final class BoardController: NSObject, NSWindowDelegate {
             return
         }
         commitFrame()
+        // Left against that edge, rather than merely nearer to it than to the
+        // other three. Every point of the screen is nearest to something.
+        guard reach(to: edge) <= M.dockReach else {
+            if Store.shared.dock != .none {
+                Store.shared.dock = .none
+                isRetracted = false
+                window.hasShadow = true
+            }
+            clampOnScreen()
+            refreshChrome()
+            return
+        }
         // Set unconditionally rather than only on a change: the window has just
         // been dragged off its resting place, so even the same edge needs the
         // retract below to put it back. This is the "docked right, dragged
@@ -927,6 +962,21 @@ final class BoardController: NSObject, NSWindowDelegate {
         isRetracted = false
         retract(animated: true)
         refreshChrome()
+    }
+
+    /// How far the window's own edge is from that edge of the screen. Negative
+    /// once it has been pushed past — which is what a docked, retracted window
+    /// measures as, so nudging one still re-tucks it rather than setting it
+    /// loose.
+    private func reach(to edge: DockEdge) -> CGFloat {
+        let sf = screenFrame(), f = window.frame
+        switch edge {
+        case .right:  return sf.maxX - f.maxX
+        case .left:   return f.minX - sf.minX
+        case .top:    return sf.maxY - f.maxY
+        case .bottom: return f.minY - sf.minY
+        case .none:   return .greatestFiniteMagnitude
+        }
     }
 
     func undock() {
@@ -1289,8 +1339,12 @@ final class BoardController: NSObject, NSWindowDelegate {
         if Store.shared.dock == .none { hideToEdge() } else { undock() }
     }
 
+    /// Same exemption the sweep makes: a finished item with an unfinished step
+    /// under it is not finished work, and this row is the only place that step
+    /// is written down. The two have to agree, or a row survives one and
+    /// vanishes to the other for no reason the user can see.
     @objc private func clearDone() {
-        commit { $0.items.removeAll(where: \.done) }
+        commit { $0.items.removeAll { $0.done && !$0.hasOpenSubs } }
         reload()
     }
 
@@ -1299,8 +1353,13 @@ final class BoardController: NSObject, NSWindowDelegate {
         var lines = ["# \(note.title)"]
         for item in note.items {
             lines.append("- [\(item.done ? "x" : " ")] \(item.text)")
-            if !item.nextText.trimmingCharacters(in: .whitespaces).isEmpty {
-                lines.append("  ↳ \(item.nextText)")
+            // Indented checkboxes rather than the `  ↳ ` this used to emit for
+            // the single follow-up: a step is a checkbox in its own right now,
+            // and every Markdown renderer already knows what a nested task list
+            // means, where ↳ was a glyph only this app understood.
+            for s in item.subs
+            where !s.text.trimmingCharacters(in: .whitespaces).isEmpty {
+                lines.append("  - [\(s.done ? "x" : " ")] \(s.text)")
             }
         }
         NSPasteboard.general.clearContents()
@@ -1437,46 +1496,69 @@ extension BoardController: TabBarDelegate {
         refreshChrome()
         Store.shared.onChange?()
     }
+
+    /// The strip has already put its own tabs in the new order and is animating
+    /// the dropped one into place, so this only writes the same move to the
+    /// model. Deliberately no refresh: rebuilding the strip here would snap
+    /// every tab to its final frame and eat the animation.
+    func tabBarMove(_ id: UUID, to index: Int) {
+        Store.shared.move(id, to: index)
+    }
 }
 
 // MARK: - Row delegate
 
 extension BoardController: ItemRowDelegate {
+    /// Ticking an item is now only about that item. It used to hand its single
+    /// follow-up to a fresh todo below it, which was the whole point of that
+    /// field; steps are ticked on their own and stay put, and turning one into a
+    /// todo is the ↥ on the step rather than a side effect of finishing the
+    /// parent.
     func rowToggle(_ id: UUID) {
-        var promoted = false
         commit {
             guard let i = $0.items.firstIndex(where: { $0.id == id }) else { return }
             $0.items[i].done.toggle()
             // The sweep counts from here. Cleared again on unticking, so putting
             // something back on the list puts it back for good.
             $0.items[i].doneAt = $0.items[i].done ? Date() : nil
-            // Ticking an item hands its next line to a fresh todo right below it.
-            // This is the whole point of the field: come back after the job has
-            // finished and the follow-up is already sitting there, unticked.
-            if $0.items[i].done, let n = $0.items[i].next,
-               !n.trimmingCharacters(in: .whitespaces).isEmpty {
-                $0.items[i].next = nil
-                $0.items.insert(ChecklistItem(text: n), at: i + 1)
-                promoted = true
-            }
         }
-        if promoted {
-            reload()
-        } else {
-            refreshChrome()
-            layoutContents()
-        }
-        // Looked up again rather than held onto from before the rebuild: on the
-        // promoted path the view that was ticked no longer exists, and the tick
-        // is worth seeing on that path too — it is the one where something else
-        // also appears, and the animation is what tells the two apart.
+        refreshChrome()
+        layoutContents()
         guard let items = current?.items,
               let i = items.firstIndex(where: { $0.id == id }), rows.indices.contains(i)
         else { return }
         rows[i].playTick(to: items[i].done)
     }
 
+    func rowToggleSub(_ id: UUID, index: Int) {
+        commit {
+            guard let i = $0.items.firstIndex(where: { $0.id == id }),
+                  $0.items[i].subs.indices.contains(index) else { return }
+            $0.items[i].subs[index].done.toggle()
+            $0.items[i].subs[index].doneAt = $0.items[i].subs[index].done ? Date() : nil
+        }
+        refreshChrome()
+        layoutContents()
+    }
+
+    /// The ↥ on a step: it leaves the item and becomes a to-do of its own,
+    /// directly below the item it was under. Whatever it had — its text, whether
+    /// it was ticked, when it was made — comes with it, because none of that
+    /// stops being true just because it moved up a level.
+    func rowPromoteSub(_ id: UUID, index: Int) {
+        commit {
+            guard let i = $0.items.firstIndex(where: { $0.id == id }),
+                  $0.items[i].subs.indices.contains(index) else { return }
+            let s = $0.items[i].subs.remove(at: index)
+            $0.items.insert(ChecklistItem(text: s.text, done: s.done,
+                                          created: s.created, doneAt: s.doneAt),
+                            at: i + 1)
+        }
+        reload()
+    }
+
     func rowTextChanged(_ id: UUID, _ text: String) {
+        guard !reloading else { return }
         noteTyping()
         commit {
             if let i = $0.items.firstIndex(where: { $0.id == id }) {
@@ -1486,59 +1568,69 @@ extension BoardController: ItemRowDelegate {
         layoutContents()
     }
 
-    func rowBeginNext(_ id: UUID) {
+    /// Tab. `index` is the slot the new step takes; the row worked out which one
+    /// from where the caret was, the same way Return picks between inserting a
+    /// to-do above and below. The caret follows the new step, so from the
+    /// keyboard the only difference between the two cases is which side of it
+    /// the text you had already typed ends up on.
+    func rowAddSub(_ id: UUID, at index: Int) {
+        guard !reloading else { return }
         noteTyping()
-        commit {
-            if let i = $0.items.firstIndex(where: { $0.id == id }), $0.items[i].next == nil {
-                $0.items[i].next = ""
-            }
+        var target = index
+        commit { note in
+            guard let i = note.items.firstIndex(where: { $0.id == id }) else { return }
+            // Clamped rather than trusted: the row and the model can disagree
+            // for one runloop turn if a reload landed between the keystroke and
+            // here, and appending is the one placement that still means
+            // something when the index is stale.
+            let at = max(0, min(index, note.items[i].subs.count))
+            note.items[i].subs.insert(SubItem(), at: at)
+            target = at
         }
         reload()
-        rows.first { $0.itemID == id }?.beginEditingNext()
+        rows.first { $0.itemID == id }?.beginEditing(sub: target)
     }
 
-    func rowNextChanged(_ id: UUID, _ text: String) {
+    func rowSubTextChanged(_ id: UUID, index: Int, text: String) {
+        guard !reloading else { return }
         noteTyping()
         commit {
-            if let i = $0.items.firstIndex(where: { $0.id == id }) {
-                $0.items[i].next = text
+            if let i = $0.items.firstIndex(where: { $0.id == id }),
+               $0.items[i].subs.indices.contains(index) {
+                $0.items[i].subs[index].text = text
             }
         }
         layoutContents()
     }
 
-    func rowEndNext(_ id: UUID) {
-        var dropped = false
-        commit {
-            if let i = $0.items.firstIndex(where: { $0.id == id }),
-               ($0.items[i].next ?? "").trimmingCharacters(in: .whitespaces).isEmpty,
-               $0.items[i].next != nil {
-                $0.items[i].next = nil
-                dropped = true
-            }
-        }
-        if dropped { reload() }
-    }
-
-    /// Esc pressed in the next line. Focus goes back to the item above it, and
-    /// an untouched line is dropped — which is what makes a mis-hit Tab a
-    /// non-event rather than something to clean up by hand.
+    /// Esc, Backspace-on-empty, focus leaving an untouched step, or the ✕ on it.
+    /// An empty step is dropped — which is what makes a mis-hit Tab a non-event
+    /// rather than something to clean up by hand — and one with text in it is
+    /// only removed when the ✕ was actually clicked, which is the same call
+    /// arriving with something to delete.
     ///
     /// The drop has to happen before focus moves: `reload()` rebuilds the rows,
     /// so a `beginEditing` issued against the old row would target a view that
     /// is no longer in the window.
-    func rowCancelNext(_ id: UUID) {
-        var dropped = false
+    func rowCancelSub(_ id: UUID, index: Int) {
+        // Reentrancy. This is the callback `reload()` provokes when it takes the
+        // caret out of an empty step, and acting on it there would delete a step
+        // the user never asked to lose — the model is already being rewritten by
+        // whoever called `reload()`.
+        guard !reloading else { return }
         commit {
             if let i = $0.items.firstIndex(where: { $0.id == id }),
-               ($0.items[i].next ?? "").trimmingCharacters(in: .whitespaces).isEmpty,
-               $0.items[i].next != nil {
-                $0.items[i].next = nil
-                dropped = true
+               $0.items[i].subs.indices.contains(index) {
+                $0.items[i].subs.remove(at: index)
             }
         }
-        if dropped { reload() }
-        rows.first { $0.itemID == id }?.beginEditing(atEnd: true)
+        reload()
+        // Back to whatever was above the step that just went: the step before
+        // it, or the item itself. Same landing spot ↑ would have picked, so the
+        // two agree.
+        guard let r = rows.first(where: { $0.itemID == id }) else { return }
+        if index > 0 { r.beginEditing(sub: index - 1, atEnd: true) }
+        else { r.beginEditing(atEnd: true) }
     }
 
     func rowDelete(_ id: UUID) {
@@ -1575,15 +1667,15 @@ extension BoardController: ItemRowDelegate {
     /// goes away and the caret lands at the end of the line above, exactly where
     /// it was before.
     ///
-    /// The next line has to be empty too. An item can have a follow-up typed into
-    /// its ↳ field while its own text is still blank, and removing the row would
-    /// take that with it — silently, since the caret is nowhere near it.
+    /// The steps have to be gone too. An item can have steps typed under it
+    /// while its own text is still blank, and removing the row would take them
+    /// with it — silently, since the caret is nowhere near them.
     func rowDeleteEmpty(_ id: UUID) {
         noteTyping()
         guard let items = current?.items,
               let i = items.firstIndex(where: { $0.id == id }),
               items[i].text.isEmpty,
-              items[i].nextText.isEmpty else { return }
+              items[i].subs.isEmpty else { return }
 
         commit { $0.items.removeAll { $0.id == id } }
         reload()
@@ -1593,29 +1685,42 @@ extension BoardController: ItemRowDelegate {
             if rows.isEmpty { window.makeFirstResponder(addField) } else { focus(rowAt: 0, field: .main) }
             return
         }
-        let above = current?.items[i - 1]
-        focus(rowAt: i - 1, field: (above?.hasNext ?? false) ? .next : .main)
+        focus(rowAt: i - 1, field: lastField(of: i - 1))
     }
 
-    /// ↑/↓ walks the whole list as one column: item → its next line → the next
-    /// item, and off the bottom into the add-field.
+    /// The bottom-most field of the item at `index`: its last step, or its own
+    /// text if it has none. Where ↑ lands when it arrives from below.
+    private func lastField(of index: Int) -> RowField {
+        guard let items = current?.items, items.indices.contains(index),
+              !items[index].subs.isEmpty else { return .main }
+        return .sub(items[index].subs.count - 1)
+    }
+
+    /// ↑/↓ walks the whole list as one column: item → each of its steps in turn
+    /// → the next item, and off the bottom into the add-field.
     func rowMoveFocus(from id: UUID, in field: RowField, up: Bool) {
         guard let i = rows.firstIndex(where: { $0.itemID == id }) else { return }
         let items = current?.items ?? []
+        let subs = items.indices.contains(i) ? items[i].subs.count : 0
 
         if up {
-            if field == .next { focus(rowAt: i, field: .main); return }
-            guard i > 0 else { return }
-            focus(rowAt: i - 1, field: items[i - 1].hasNext ? .next : .main)
-        } else {
-            if field == .main, i < items.count, items[i].hasNext {
-                focus(rowAt: i, field: .next)
-                return
+            switch field {
+            case .sub(let s) where s > 0: focus(rowAt: i, field: .sub(s - 1))
+            case .sub: focus(rowAt: i, field: .main)
+            case .main:
+                guard i > 0 else { return }
+                focus(rowAt: i - 1, field: lastField(of: i - 1))
             }
-            if i + 1 < rows.count {
-                focus(rowAt: i + 1, field: .main)
-            } else {
-                window.makeFirstResponder(addField)
+        } else {
+            switch field {
+            case .main where subs > 0: focus(rowAt: i, field: .sub(0))
+            case .sub(let s) where s + 1 < subs: focus(rowAt: i, field: .sub(s + 1))
+            default:
+                if i + 1 < rows.count {
+                    focus(rowAt: i + 1, field: .main)
+                } else {
+                    window.makeFirstResponder(addField)
+                }
             }
         }
     }
@@ -1748,7 +1853,63 @@ extension BoardController: ItemRowDelegate {
         guard rows.indices.contains(from), rows[from] === d else { return reload() }
         let moved = rows.remove(at: from)
         rows.insert(moved, at: min(to, rows.count))
+        // The day-break hairline is a statement about position, so it belongs to
+        // whichever row is now first of today's — not to the one that was before
+        // the drop.
+        refreshChrome()
         settle()
+    }
+
+    /// A step dropped somewhere else among its siblings.
+    ///
+    /// Only the write; no reload and no refresh. The row runs the whole step
+    /// drag itself — a step never leaves the item it is under, so nothing
+    /// outside that one row moves — and it has already put its own views in this
+    /// order so the dropped one can glide into place. Rebuilding here would
+    /// replace them mid-animation with views that can only appear in their
+    /// slots.
+    func rowMoveSub(_ id: UUID, from: Int, to: Int) {
+        guard !reloading else { return }
+        noteTyping()
+        commit { note in
+            guard let i = note.items.firstIndex(where: { $0.id == id }),
+                  note.items[i].subs.indices.contains(from) else { return }
+            let s = note.items[i].subs.remove(at: from)
+            note.items[i].subs.insert(s, at: min(to, note.items[i].subs.count))
+        }
+    }
+
+    /// ⌥↑ / ⌥↓ on an item: one place up or down, steps and all.
+    ///
+    /// The views are moved rather than rebuilt, for the reason the keyboard
+    /// version exists at all — a reload would take the field editor with it, and
+    /// the whole point is that the row moves out from under a caret that stays
+    /// where it was. At the ends of the list this does nothing, which is the
+    /// honest answer to "move the first one up".
+    func rowMoveItem(_ id: UUID, up: Bool) {
+        guard !reloading, dragRow == nil,
+              let from = rows.firstIndex(where: { $0.itemID == id }) else { return }
+        let to = up ? from - 1 : from + 1
+        guard rows.indices.contains(to) else { return }
+        noteTyping()
+        var ok = false
+        commit { note in
+            // The row order and the model order are kept in lockstep everywhere
+            // else, so this only has to check that they still are — and if they
+            // are not, write nothing and let the rebuild below sort it out.
+            guard note.items.indices.contains(from), note.items[from].id == id,
+                  note.items.indices.contains(to) else { return }
+            let item = note.items.remove(at: from)
+            note.items.insert(item, at: to)
+            ok = true
+        }
+        guard ok else { return reload() }
+        rows.swapAt(from, to)
+        refreshChrome()
+        settle()
+        // A row moved to the far end of a long list is otherwise moved out of
+        // sight, which reads as having lost it rather than having moved it.
+        rows[to].scrollToVisible(rows[to].bounds)
     }
 
     /// Lets go: the held row glides from wherever the hand left it into the slot
@@ -1770,7 +1931,7 @@ extension BoardController: ItemRowDelegate {
         let r = rows[index]
         switch field {
         case .main: r.beginEditing(atEnd: true)
-        case .next: r.beginEditingNext(atEnd: true)
+        case .sub(let i): r.beginEditing(sub: i, atEnd: true)
         }
         r.scrollToVisible(r.bounds)
     }
@@ -1809,7 +1970,7 @@ extension BoardController: NSTextFieldDelegate {
             // that ↓ off the bottom of the list opened.
             guard !rows.isEmpty else { return true }
             let last = rows.count - 1
-            focus(rowAt: last, field: (current?.items[last].hasNext ?? false) ? .next : .main)
+            focus(rowAt: last, field: lastField(of: last))
             return true
         case #selector(NSResponder.cancelOperation(_:)):
             // Esc clears a half-typed new todo and drops focus. Nothing has been

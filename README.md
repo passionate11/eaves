@@ -44,7 +44,8 @@ the border of the building, that you stop noticing once you live under it.
 
 ## Features
 
-- **Tabbed lists** — colour-coded, renameable, taggable.
+- **Tabbed lists** — colour-coded, renameable, taggable, and draggable into a
+  different order.
 - **Edge docking** — drag near a screen edge and the window snaps into it,
   leaving a hover sliver. Left, right, top or bottom.
 - **Auto-hide** — once docked, it retracts on its own after you stop typing and
@@ -52,8 +53,10 @@ the border of the building, that you stop noticing once you live under it.
 - **Float on top** — stays above other windows, including full-screen ones.
 - **Six themes** — follow-system, paper, sand, graphite, midnight ink, and a
   translucent glass.
-- **Two-line rows** — `Tab` from a todo opens a smaller second line under it for
-  the detail you don't want in the title.
+- **Steps under a todo** — `Tab` from a todo adds a smaller step under it, and
+  `Tab` again adds another; with the caret at the head of a step it inserts in
+  front of that one instead. Each ticks off on its own, can be dragged into a
+  different order, and can be promoted to a todo of its own.
 - **Tag filtering** — hide whole lists from the menu-bar icon by tag.
 - **Menu-bar only** — no Dock icon, no window in ⌘Tab. `LSUIElement`.
 - **Launch at login**, from the menu-bar menu.
@@ -98,9 +101,11 @@ The app has no window chrome and no menu bar. Everything lives in two places:
 | `⌘⇧H` | Show / hide the note window |
 | `⌘Q` | Quit |
 | `Return` | New todo below the current one |
-| `Tab` | Jump to the second line of a row, and back |
-| `Esc` | Finish editing (or discard an empty second line) |
+| `Tab` | Add a step below this one (at the head of a step: in front of it) |
+| `⇧Tab` | Back up to the step above, or to the todo itself |
+| `Esc` | Finish editing (or discard an empty step) |
 | `↑` `↓` | Move between rows while typing |
+| `⌥↑` `⌥↓` | Move the row you are typing in up or down |
 | `⌘Z` `⌘⇧Z` | Undo / redo |
 
 The ⌘-chords need the note window focused — with no Dock icon there is nothing
@@ -109,8 +114,17 @@ else to give the app focus. Settings live under the menu-bar icon.
 Right-clicking a tab gives you colour, rename, tags, clear-completed, copy as
 text, and delete.
 
-**Docking:** drag the window until it touches an edge and let go. It snaps in
-and leaves a sliver. To undock, drag it back out, or right-click → 放回桌面.
+**Docking:** drag the window by the narrow blank band along the top of the tab
+strip — the tabs themselves now drag as tabs. Drag until it touches an edge and
+let go. It snaps in and leaves a sliver. Let go anywhere else and it stays where
+you dropped it. To undock a docked note, drag it back out, or right-click → Put
+Back on the Desktop.
+
+**Reordering:** drag a todo up or down to move it. Dragging one of its steps
+moves that step among the steps under the same todo — to take a step out of its
+todo entirely, use the ↥ that appears on it. `⌥↑` / `⌥↓` do the same thing
+without letting go of the keyboard: they move whichever row the caret is in.
+Tabs reorder the same way, dragged left and right along the strip.
 
 ## Data
 

@@ -230,26 +230,51 @@ struct Palette {
     }
 }
 
+/// One step under a todo, shown as a smaller indented row with a checkbox of
+/// its own.
+///
+/// This is a separate type from `ChecklistItem` rather than the same one nested,
+/// because a step is deliberately less than a todo: it carries no steps of its
+/// own, it is not counted by the progress bar, and it is not swept on its own
+/// clock. Reusing `ChecklistItem` would make all three of those representable
+/// and then have to forbid them everywhere instead.
+struct SubItem: Codable, Identifiable, Equatable {
+    var id: UUID = UUID()
+    var text: String = ""
+    var done: Bool = false
+    /// Same shape and the same reasoning as `ChecklistItem.created`: Optional
+    /// so an older file decodes, and nil meaning "no recorded time" rather than
+    /// standing in for one. Steps migrated from the old single `next` string get
+    /// nil, because that string never had a creation time to recover.
+    var created: Date? = Date()
+    /// When this step was ticked. Not what the sweep counts from — steps are
+    /// swept with their parent, never on their own — but it is what
+    /// `startTheClockOnAlreadyDoneItems` fills in, and keeping the pair
+    /// symmetrical with `ChecklistItem` costs nothing.
+    var doneAt: Date? = nil
+}
+
 struct ChecklistItem: Codable, Identifiable, Equatable {
     var id: UUID = UUID()
     var text: String = ""
     var done: Bool = false
-    /// "What to do once this finishes", shown as an indented line under the item.
-    /// Optional rather than defaulting to "" because the synthesized decoder only
-    /// tolerates a missing key on an Optional — a notes.json written before this
-    /// field existed has to keep decoding.
+    /// The steps under this todo, in the order they are shown. Tab in the item's
+    /// text opens one; Tab in a step opens the next.
     ///
-    /// `nil` means no line at all; `""` means the line exists but is still being
-    /// typed, which is what makes Tab able to open an empty one.
-    var next: String? = nil
+    /// This replaces a single optional `next` string, which could hold exactly
+    /// one follow-up and was handed to a fresh todo when the item was ticked.
+    /// Steps are ticked individually now and stay where they are; promoting one
+    /// to a todo of its own is a button on the step rather than a side effect of
+    /// finishing the parent. `init(from:)` below migrates the old field.
+    var subs: [SubItem] = []
     /// When the item was made, shown small at the right-hand end of its row.
     ///
-    /// Optional for the same reason `next` is, and the nil case is meaningful
-    /// rather than merely tolerated: the synthesized decoder ignores this
-    /// default and leaves the field nil for a notes.json written before it
-    /// existed, which is right — those items have no recorded creation time,
-    /// and a stamp reading "the day you updated the app" would be a fabrication
-    /// sitting in the UI looking like a fact. They show no stamp at all.
+    /// Optional so an older notes.json still decodes, and the nil case is
+    /// meaningful rather than merely tolerated: the decoder leaves the field nil
+    /// for a file written before it existed, which is right — those items have
+    /// no recorded creation time, and a stamp reading "the day you updated the
+    /// app" would be a fabrication sitting in the UI looking like a fact. They
+    /// show no stamp at all.
     var created: Date? = Date()
     /// When the item was ticked, and nil whenever it is not ticked. This is what
     /// the sweep counts from, and it is a separate field from `created` because
@@ -259,8 +284,59 @@ struct ChecklistItem: Codable, Identifiable, Equatable {
     /// on the list is back for good instead of carrying a day-old death sentence.
     var doneAt: Date? = nil
 
-    var nextText: String { next ?? "" }
-    var hasNext: Bool { next != nil }
+    var hasSubs: Bool { !subs.isEmpty }
+    /// Ticked, but something under it is not. Both the 24h sweep and "Clear
+    /// Completed" exempt these: the item is finished, the work it opened is not,
+    /// and this row is the only place that work is written down.
+    var hasOpenSubs: Bool { subs.contains { !$0.done } }
+}
+
+extension ChecklistItem {
+    /// Every key the app writes. `next` is deliberately absent, so the legacy
+    /// field disappears from notes.json the first time it is saved — the
+    /// migration below is one-way and does not need to preserve it.
+    private enum CodingKeys: String, CodingKey {
+        case id, text, done, subs, created, doneAt
+    }
+
+    /// The single follow-up string this used to have, read only on the way in.
+    private enum LegacyKeys: String, CodingKey {
+        case next
+    }
+
+    /// Hand-written so a notes.json holding `"next": "…"` still opens.
+    ///
+    /// The migration sits here rather than in `Store.load()` because `load()`
+    /// swallows decode failures with `try?`: a gap in the migration would show
+    /// up as an empty app, and the first keystroke's `scheduleSave` would then
+    /// write that emptiness over the real notes. Decoding is the one place every
+    /// old file is guaranteed to pass through exactly once.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
+        done = try c.decodeIfPresent(Bool.self, forKey: .done) ?? false
+        created = try c.decodeIfPresent(Date.self, forKey: .created)
+        doneAt = try c.decodeIfPresent(Date.self, forKey: .doneAt)
+
+        if let s = try c.decodeIfPresent([SubItem].self, forKey: .subs) {
+            subs = s
+            return
+        }
+        // No `subs` key: either a file older than this feature, or one written
+        // by a build that had `next`. An empty `next` was the "line is open but
+        // still being typed" sentinel, which no longer has a representation and
+        // was never worth keeping — it is dropped rather than migrated into a
+        // blank step.
+        let legacy = try decoder.container(keyedBy: LegacyKeys.self)
+        let n = try legacy.decodeIfPresent(String.self, forKey: .next) ?? ""
+        // `created: nil`, not `Date()`. That string never carried a creation
+        // time, and stamping it with the moment of migration would put a
+        // fabricated date in the UI — the same reasoning `created` above is
+        // Optional for.
+        subs = n.trimmingCharacters(in: .whitespaces).isEmpty
+            ? [] : [SubItem(text: n, created: nil)]
+    }
 }
 
 /// Which screen edge a note is docked to. `.none` means free-floating.
@@ -583,6 +659,20 @@ final class Store {
         onChange?()
     }
 
+    /// Puts a note at a different place in the list.
+    ///
+    /// Like `update`, and unlike `add` and `remove`, this does not fire
+    /// `onChange`: the tab strip that asks for it has already moved its own
+    /// tabs, and rebuilding the strip would put them back in the old order for
+    /// as long as it takes the drop to animate.
+    func move(_ id: UUID, to index: Int) {
+        guard let from = notes.firstIndex(where: { $0.id == id }),
+              notes.indices.contains(index), from != index else { return }
+        let n = notes.remove(at: from)
+        notes.insert(n, at: index)
+        scheduleSave()
+    }
+
     // MARK: Sweeping finished items
 
     /// Gives a completion time to items that were ticked before this app knew
@@ -599,10 +689,20 @@ final class Store {
         let now = Date()
         var touched = false
         for i in notes.indices {
-            for j in notes[i].items.indices
-            where notes[i].items[j].done && notes[i].items[j].doneAt == nil {
-                notes[i].items[j].doneAt = now
-                touched = true
+            for j in notes[i].items.indices {
+                if notes[i].items[j].done && notes[i].items[j].doneAt == nil {
+                    notes[i].items[j].doneAt = now
+                    touched = true
+                }
+                // Steps too. They are not swept on their own clock, but a step
+                // ticked in an older build has the same missing timestamp, and
+                // leaving it nil would make it look freshly ticked forever.
+                for k in notes[i].items[j].subs.indices
+                where notes[i].items[j].subs[k].done
+                    && notes[i].items[j].subs[k].doneAt == nil {
+                    notes[i].items[j].subs[k].doneAt = now
+                    touched = true
+                }
             }
         }
         if touched { scheduleSave() }
@@ -619,6 +719,15 @@ final class Store {
         var note: String
         var created: Date?
         var done: Date
+        /// The steps that were under it, flattened to their text. By the time an
+        /// item is swept every one of them is done — `sweepDone` will not touch
+        /// an item with an open step — so there is nothing to distinguish here.
+        ///
+        /// Optional, and that is not a formality: `archive` reads the existing
+        /// file back with `try?` before appending, so a required new field would
+        /// fail to decode every entry written before it existed and silently
+        /// replace the whole history with the current batch.
+        var steps: [String]? = nil
     }
 
     /// Drops every item that has been ticked for longer than `sweepAfter`.
@@ -636,9 +745,17 @@ final class Store {
             let title = notes[i].title
             notes[i].items.removeAll { item in
                 guard item.done, let at = item.doneAt,
-                      now.timeIntervalSince(at) >= Store.sweepAfter else { return false }
+                      now.timeIntervalSince(at) >= Store.sweepAfter,
+                      // Finished, but something under it is not. The item is
+                      // done; the work it opened is not, and this row is the
+                      // only place that work is written down. Sweeping it would
+                      // take the open steps with it, silently, a day after the
+                      // user stopped looking at the row.
+                      !item.hasOpenSubs else { return false }
                 gone.append(SweptItem(text: item.text, note: title,
-                                      created: item.created, done: at))
+                                      created: item.created, done: at,
+                                      steps: item.subs.isEmpty
+                                          ? nil : item.subs.map(\.text)))
                 return true
             }
         }

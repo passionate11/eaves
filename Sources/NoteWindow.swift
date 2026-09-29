@@ -3,8 +3,17 @@ import AppKit
 // MARK: - Metrics
 
 enum M {
-    /// Height of the tab strip. When collapsed this is the whole window.
-    static let tab: CGFloat = 34
+    /// Blank band along the top of the tab strip, above the tabs.
+    ///
+    /// This is the window's drag handle. The strip used to be the handle in its
+    /// entirety, tabs included, which left no gesture free for reordering them —
+    /// a press on a tab could either move the window or move the tab, not both.
+    /// Giving the handle a strip of its own settles that by where the press
+    /// lands rather than by a rule anyone has to learn.
+    static let tabGutter: CGFloat = 8
+    /// Height of the tab strip, gutter included. When collapsed this is the
+    /// whole window.
+    static let tab: CGFloat = 34 + tabGutter
     static let footer: CGFloat = 34
     static let pad: CGFloat = 14
     static let rowMin: CGFloat = 32
@@ -22,6 +31,11 @@ enum M {
     /// window back out. Wider than the sliver on purpose: the visual hint can be
     /// discreet as long as the target is forgiving.
     static let dockHotZone: CGFloat = 10
+    /// How near an edge the window has to be left before letting go tucks it in.
+    /// Generous enough that "against the right side" does not mean hitting a
+    /// pixel, tight enough that the middle of the screen is somewhere a note can
+    /// actually be left.
+    static let dockReach: CGFloat = 40
     static let fadeAlpha: CGFloat = 0.96
     /// A tab never shrinks below this; past that point the strip clips.
     static let tabMinWidth: CGFloat = 46

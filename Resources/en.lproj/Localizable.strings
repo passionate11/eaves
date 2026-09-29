@@ -95,7 +95,9 @@
 /* --- The note itself --- */
 "note.untitled"         = "New Note";
 "field.addTodo"         = "＋ Add a to-do";
-"field.nextLine"        = "and then…";
+"field.subItem"         = "and then…";
+"row.promoteSub.tip"    = "Make this a to-do of its own";
+"row.deleteSub.tip"     = "Remove this step";
 "empty.hint"            = "Click ＋ in the corner to start a list";
 "tabBar.collapse.tip"   = "Collapse to just the tab strip";
 "tabBar.newList.tip"    = "New list";

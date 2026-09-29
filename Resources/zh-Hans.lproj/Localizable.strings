@@ -85,7 +85,9 @@
 /* --- 便签本体 --- */
 "note.untitled"         = "新便签";
 "field.addTodo"         = "＋ 新增待办";
-"field.nextLine"        = "接下来…";
+"field.subItem"         = "接下来…";
+"row.promoteSub.tip"    = "提升为独立待办";
+"row.deleteSub.tip"     = "删掉这一步";
 "empty.hint"            = "点右上角 ＋ 新建一个清单";
 "tabBar.collapse.tip"   = "折叠成一条标签栏";
 "tabBar.newList.tip"    = "新建清单";
