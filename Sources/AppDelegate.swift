@@ -9,14 +9,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// Only alive while the window is actually docked — see `syncHoverTimer`.
     private var hoverTimer: Timer?
-    /// Ticked items are swept a day after they were ticked. On a timer as well
+    /// Ticked items are swept two hours after they were ticked. On a timer as well
     /// as at launch because this app is meant to be left running for weeks —
     /// a launch-only sweep would almost never fire for the people it is for.
     ///
-    /// Six-hourly rather than often. The threshold is a day, so a coarse timer
-    /// only means a row leaves somewhere in the six hours after it is due,
-    /// which nobody is watching for — and a sweep that ran every few minutes
-    /// would spend the whole day waking up to find nothing to do.
+    /// Half-hourly rather than often. The threshold is two hours, so a coarse
+    /// timer only means a row leaves somewhere in the half hour after it is
+    /// due, which nobody is watching for — and a sweep that ran every few
+    /// minutes would spend the whole day waking up to find nothing to do.
     private var sweepTimer: Timer?
     /// Fires once at each midnight, and does nothing but redraw.
     ///
@@ -26,6 +26,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// until something unrelated happened to trigger a redraw — which on a quiet
     /// morning could be hours of the list saying something untrue.
     private var midnightTimer: Timer?
+
+    /// Clicking the Dock icon. Brings the window back even when it was hidden
+    /// from the menu bar, since that is the only reason to click it.
+    func applicationShouldHandleReopen(_ sender: NSApplication,
+                                       hasVisibleWindows flag: Bool) -> Bool {
+        bringForward()
+        return false
+    }
+
+    /// ⌘Tab, or anything else that activates the app: the window comes with it.
+    /// Without this the app would come forward and leave the window where it
+    /// was, under the windows that covered it.
+    func applicationDidBecomeActive(_ notification: Notification) {
+        guard board != nil else { return }
+        bringForward()
+    }
+
+    private func bringForward() {
+        if Store.shared.allHidden { setAllHidden(false) }
+        if Store.shared.dock != .none { board.expand(animated: true) }
+        board.window.makeKeyAndOrderFront(nil)
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Before anything else: this is what makes ⌘Z / ⌘A / ⌘C / ⌘V work at
@@ -52,10 +74,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if Store.shared.allHidden { setAllHidden(true) }
 
         syncHoverTimer()
-        Store.shared.onDockChange = { [weak self] in self?.syncHoverTimer() }
+        Store.shared.onDockChange = { [weak self] in
+            self?.syncHoverTimer()
+            self?.board.applyLevel()
+        }
 
         sweep()
-        sweepTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in
+        Store.shared.exportWorkLog()
+        sweepTimer = Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) { [weak self] _ in
             self?.sweep()
         }
 
@@ -89,9 +115,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Never while something is being typed into: the sweep rebuilds the list,
     /// and a rebuild takes the field editor with it. Nothing is lost by waiting
     /// — the next pass will find the same rows, and one that has already sat
-    /// there a day is in no hurry.
+    /// there two hours is in no hurry. A caret left idle in a field does not
+    /// count; `reload` commits the field's text before giving up the caret.
     private func sweep() {
-        guard let board = board, !board.isEditing else { return }
+        guard let board = board, !board.isTyping else { return }
         if Store.shared.sweepDone() { board.reload() }
     }
 

@@ -61,7 +61,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <string>zh-Hans</string>
   </array>
   <key>LSMinimumSystemVersion</key>    <string>${DEPLOY_TARGET}</string>
-  <key>LSUIElement</key>               <true/>
+  <key>LSUIElement</key>               <false/>
   <key>NSHighResolutionCapable</key>   <true/>
   <key>NSPrincipalClass</key>          <string>NSApplication</string>
   <key>NSHumanReadableCopyright</key>  <string>MIT License</string>

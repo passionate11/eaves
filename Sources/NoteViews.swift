@@ -7,6 +7,8 @@ protocol TabBarDelegate: AnyObject {
     func tabBarToggleCollapse()
     /// The hide button was pressed: tuck the window into the screen edge.
     func tabBarHide()
+    /// The pin was pressed: toggle whether the window stays above other apps.
+    func tabBarTogglePin()
     func tabBarShowMenu(for id: UUID?, from view: NSView)
     func tabBarAddNote()
     func tabBarRename(_ id: UUID, to title: String)
@@ -254,6 +256,9 @@ final class TabBarView: FlippedView {
             needsDisplay = true
         }
     }
+    private lazy var pin = symbolButton("pin", size: 10, target: self,
+                                        action: #selector(pinTapped))
+    private var pinned = false
     private lazy var hide = symbolButton("arrow.right.to.line", size: 10, target: self,
                                          action: #selector(hideTapped))
     private lazy var chevron = symbolButton("chevron.down", target: self,
@@ -262,8 +267,9 @@ final class TabBarView: FlippedView {
                                          action: #selector(addTapped))
     private var collapsed = false
 
-    /// Room reserved on the right for the hide button, the chevron and the ＋.
-    private let controlsW: CGFloat = 70
+    /// Room reserved on the right for the pin, the hide button, the chevron
+    /// and the ＋.
+    private let controlsW: CGFloat = 91
     /// Gap between the left edge of the strip and the first tab.
     static let inset: CGFloat = 4
 
@@ -280,6 +286,7 @@ final class TabBarView: FlippedView {
         super.init(frame: frame)
         chevron.toolTip = L("tabBar.collapse.tip")
         plus.toolTip = L("tabBar.newList.tip")
+        addSubview(pin)
         addSubview(hide)
         addSubview(chevron)
         addSubview(plus)
@@ -288,8 +295,9 @@ final class TabBarView: FlippedView {
     required init?(coder: NSCoder) { fatalError() }
 
     func configure(notes: [Note], selected: UUID?, collapsed: Bool,
-                   hideEdge: DockEdge, autoHide: Bool) {
+                   hideEdge: DockEdge, autoHide: Bool, pinned: Bool) {
         self.collapsed = collapsed
+        self.pinned = pinned
 
         if tabs.count != notes.count {
             tabs.forEach { $0.removeFromSuperview() }
@@ -316,6 +324,10 @@ final class TabBarView: FlippedView {
             .withSymbolConfiguration(hcfg)
         let tuck = L("tuck.\(hideEdge.rawValue)")
         hide.toolTip = autoHide ? tuck + L("tuck.autoHint") : tuck
+        pin.image = NSImage(systemSymbolName: pinned ? "pin.fill" : "pin",
+                            accessibilityDescription: nil)?
+            .withSymbolConfiguration(hcfg)
+        pin.toolTip = L(pinned ? "tabBar.unpin.tip" : "tabBar.pin.tip")
         applyColors()
         layoutTabs(notes: notes, selected: selected)
         needsDisplay = true
@@ -328,6 +340,9 @@ final class TabBarView: FlippedView {
         // active tab's chip plus the hairline below are what separate them.
         let fg = NSColor.secondaryLabelColor
         hide.contentTintColor = fg
+        // Filled and in the accent colour when on, so a glance tells you whether
+        // the window will stay put above everything else.
+        pin.contentTintColor = pinned ? .controlAccentColor : fg
         chevron.contentTintColor = fg
         plus.contentTintColor = fg
     }
@@ -364,6 +379,7 @@ final class TabBarView: FlippedView {
         chevron.frame = NSRect(x: bounds.width - 44, y: top + (h - 16) / 2, width: 16, height: 16)
         plus.frame = NSRect(x: bounds.width - 23, y: top + (h - 16) / 2, width: 16, height: 16)
         hide.frame = NSRect(x: bounds.width - 65, y: top + (h - 16) / 2, width: 16, height: 16)
+        pin.frame = NSRect(x: bounds.width - 86, y: top + (h - 16) / 2, width: 16, height: 16)
 
         guard !notes.isEmpty else { return }
         // Not while a tab is in the air. A refresh landing mid-gesture would put
@@ -585,6 +601,7 @@ final class TabBarView: FlippedView {
 
     @objc private func collapseTapped() { delegate?.tabBarToggleCollapse() }
     @objc private func addTapped() { delegate?.tabBarAddNote() }
+    @objc private func pinTapped() { delegate?.tabBarTogglePin() }
     @objc private func hideTapped() { delegate?.tabBarHide() }
 }
 

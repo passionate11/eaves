@@ -319,6 +319,11 @@ final class BoardController: NSObject, NSWindowDelegate {
     /// than the field itself because what holds first-responder status during
     /// editing is the shared field editor, not the control it is editing.
     var isEditing: Bool { window.firstResponder is NSText }
+    /// Typed into in the last couple of minutes. `isEditing` alone is no use
+    /// to the sweep: the caret stays in a field long after the user has walked
+    /// away — this window floats and is rarely asked to give it up — so a sweep
+    /// waiting for it to leave waited forever.
+    var isTyping: Bool { isEditing && Date().timeIntervalSince(lastTypedAt) < 120 }
 
     /// Live state of a row drag: which row is in the air, and where it would
     /// land if it were let go now. Nothing is written to the note until then —
@@ -357,7 +362,7 @@ final class BoardController: NSObject, NSWindowDelegate {
         Store.shared.windowFrame = window.frame
 
         window.delegate = self
-        window.applyFloatOnTop(Store.shared.floatOnTop)
+        applyLevel()
 
         root.blendingMode = .behindWindow
         // .active, not .followsWindowActiveState: this is an accessory app that
@@ -570,7 +575,8 @@ final class BoardController: NSObject, NSWindowDelegate {
         tabBar.palette = chrome
         tabBar.configure(notes: tabNotes, selected: current?.id,
                          collapsed: Store.shared.collapsed,
-                         hideEdge: hideEdge, autoHide: Store.shared.autoHide)
+                         hideEdge: hideEdge, autoHide: Store.shared.autoHide,
+                         pinned: Store.shared.floatOnTop)
         bar.configure(done: current?.doneCount ?? 0,
                       total: current?.items.count ?? 0, accent: color.accent)
         for (r, item) in zip(rows, current?.items ?? []) {
@@ -703,7 +709,8 @@ final class BoardController: NSObject, NSWindowDelegate {
     private func refreshTabsLayout() {
         tabBar.configure(notes: tabNotes, selected: current?.id,
                          collapsed: Store.shared.collapsed,
-                         hideEdge: hideEdge, autoHide: Store.shared.autoHide)
+                         hideEdge: hideEdge, autoHide: Store.shared.autoHide,
+                         pinned: Store.shared.floatOnTop)
     }
 
     /// The idle fade only applies to `.glass`. On a solid theme a 4% fade is
@@ -1332,19 +1339,31 @@ final class BoardController: NSObject, NSWindowDelegate {
 
     @objc private func toggleTop() {
         Store.shared.floatOnTop.toggle()
-        window.applyFloatOnTop(Store.shared.floatOnTop)
+        applyLevel()
+        refreshChrome()
+    }
+
+    /// Unpinned, the window is an ordinary one: other apps cover it and a click
+    /// brings it back. Docked it floats regardless — a window tucked into the
+    /// screen edge is reached by its sliver, and a sliver under another app's
+    /// window cannot be reached at all.
+    func applyLevel() {
+        window.applyFloatOnTop(Store.shared.floatOnTop || Store.shared.dock != .none)
     }
 
     @objc private func toggleDock() {
         if Store.shared.dock == .none { hideToEdge() } else { undock() }
     }
 
-    /// Same exemption the sweep makes: a finished item with an unfinished step
-    /// under it is not finished work, and this row is the only place that step
-    /// is written down. The two have to agree, or a row survives one and
-    /// vanishes to the other for no reason the user can see.
+    /// Same rule as the sweep: a ticked item is finished, steps and all, so an
+    /// unticked step under it does not keep it on the list. The two have to
+    /// agree, or a row survives one and vanishes to the other for no reason the
+    /// user can see.
     @objc private func clearDone() {
-        commit { $0.items.removeAll { $0.done && !$0.hasOpenSubs } }
+        if let note = current {
+            Store.shared.recordEnded(note.items.filter(\.done), from: note.title, as: .done)
+        }
+        commit { $0.items.removeAll(where: \.done) }
         reload()
     }
 
@@ -1473,6 +1492,8 @@ extension BoardController: TabBarDelegate {
     func tabBarToggleCollapse() { toggleCollapse() }
 
     func tabBarHide() { hideToEdge() }
+
+    func tabBarTogglePin() { toggleTop() }
 
     func tabBarShowMenu(for id: UUID?, from view: NSView) {
         buildMenu(for: id).popUp(positioning: nil,
@@ -1634,6 +1655,12 @@ extension BoardController: ItemRowDelegate {
     }
 
     func rowDelete(_ id: UUID) {
+        if let note = current, let item = note.items.first(where: { $0.id == id }) {
+            // A ticked row that is ×'d was finished, not given up on — the × is
+            // just the quicker way to get it off the list.
+            Store.shared.recordEnded([item], from: note.title,
+                                     as: item.done ? .done : .dropped)
+        }
         commit { $0.items.removeAll { $0.id == id } }
         reload()
     }

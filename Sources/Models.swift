@@ -281,14 +281,10 @@ struct ChecklistItem: Codable, Identifiable, Equatable {
     /// nothing else in the file records it: "done" is a flag with no date on it.
     ///
     /// Cleared on unticking rather than merely left behind, so an item put back
-    /// on the list is back for good instead of carrying a day-old death sentence.
+    /// on the list is back for good instead of carrying an old death sentence.
     var doneAt: Date? = nil
 
     var hasSubs: Bool { !subs.isEmpty }
-    /// Ticked, but something under it is not. Both the 24h sweep and "Clear
-    /// Completed" exempt these: the item is finished, the work it opened is not,
-    /// and this row is the only place that work is written down.
-    var hasOpenSubs: Bool { subs.contains { !$0.done } }
 }
 
 extension ChecklistItem {
@@ -502,7 +498,7 @@ final class Store {
         var winH: CGFloat? = nil
         var collapsed: Bool = false
         var dock: DockEdge = .none
-        var floatOnTop: Bool = true
+        var floatOnTop: Bool = false
         var autoHide: Bool = true
         /// Optional, not defaulted: the synthesized decoder only tolerates a
         /// missing key on an Optional, and a settings.json written before this
@@ -684,7 +680,7 @@ final class Store {
     /// launched the new build, and treating it as "never" would leave those
     /// rows sitting there forever while every newer one got cleared. So the
     /// clock starts at the first launch that can see them — they get the same
-    /// full day as everything else, counted from here.
+    /// grace period as everything else, counted from here.
     private func startTheClockOnAlreadyDoneItems() {
         let now = Date()
         var touched = false
@@ -709,19 +705,28 @@ final class Store {
     }
 
     /// How long a ticked item stays on the list before it is swept off it.
-    static let sweepAfter: TimeInterval = 24 * 3600
-    /// How many swept items `swept.json` keeps before the oldest start dropping.
-    private static let sweptKeep = 500
-
+    static let sweepAfter: TimeInterval = 2 * 3600
     /// A row that has been swept, kept in a form meant to be read by a person.
-    private struct SweptItem: Codable {
+    ///
+    /// No cap on how many are kept. `WorkLog` rebuilds every month's file from
+    /// this list, so dropping the oldest entries would quietly empty out the
+    /// oldest month in the vault — and a row is a hundred-odd bytes, so years of
+    /// them still make a file nobody would notice.
+    struct SweptItem: Codable {
+        enum Outcome: String, Codable { case done, dropped }
+
         var text: String
         var note: String
         var created: Date?
+        /// When the item was finished: the tick for one that was swept, the
+        /// moment of the × for one that was dropped.
         var done: Date
-        /// The steps that were under it, flattened to their text. By the time an
-        /// item is swept every one of them is done — `sweepDone` will not touch
-        /// an item with an open step — so there is nothing to distinguish here.
+        /// Optional for the same reason as `steps`. Everything written before
+        /// the × was recorded was swept after a tick, so nil reads as `.done`.
+        var outcome: Outcome? = nil
+        /// The steps that were under it, flattened to their text. A finished
+        /// item counts every step under it as finished, ticked or not, so only
+        /// a dropped item marks the open ones (see `recordEnded`).
         ///
         /// Optional, and that is not a formality: `archive` reads the existing
         /// file back with `try?` before appending, so a required new field would
@@ -744,14 +749,10 @@ final class Store {
         for i in notes.indices {
             let title = notes[i].title
             notes[i].items.removeAll { item in
+                // Steps left unticked do not hold the row back: ticking the
+                // item is what says the work is finished, steps and all.
                 guard item.done, let at = item.doneAt,
-                      now.timeIntervalSince(at) >= Store.sweepAfter,
-                      // Finished, but something under it is not. The item is
-                      // done; the work it opened is not, and this row is the
-                      // only place that work is written down. Sweeping it would
-                      // take the open steps with it, silently, a day after the
-                      // user stopped looking at the row.
-                      !item.hasOpenSubs else { return false }
+                      now.timeIntervalSince(at) >= Store.sweepAfter else { return false }
                 gone.append(SweptItem(text: item.text, note: title,
                                       created: item.created, done: at,
                                       steps: item.subs.isEmpty
@@ -784,10 +785,44 @@ final class Store {
         var all = (try? Data(contentsOf: sweptURL))
             .flatMap { try? decoder.decode([SweptItem].self, from: $0) } ?? []
         all.append(contentsOf: items)
-        if all.count > Store.sweptKeep { all.removeFirst(all.count - Store.sweptKeep) }
         if let data = try? encoder.encode(all) {
             try? data.write(to: sweptURL, options: .atomic)
         }
+        WorkLog.export(all)
+    }
+
+    /// For rows leaving the list some other way than the sweep: the × on a row,
+    /// and "Clear Completed". Both used to drop the row without a trace, and the
+    /// × is how most finished work actually leaves — so without this the record
+    /// held almost nothing.
+    ///
+    /// A row with no text is not work, it is a stray Return, and is skipped.
+    func recordEnded(_ items: [ChecklistItem], from noteTitle: String,
+                     as outcome: SweptItem.Outcome, now: Date = Date()) {
+        let gone = items
+            .filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
+            .map { item in
+                SweptItem(text: item.text, note: noteTitle, created: item.created,
+                          done: outcome == .done ? (item.doneAt ?? now) : now,
+                          outcome: outcome,
+                          steps: item.subs.isEmpty ? nil : item.subs.map {
+                              // A finished item takes its steps with it as done.
+                              // An open step under a dropped one is work that was
+                              // abandoned with it, which is worth seeing at review.
+                              outcome == .done || $0.done ? $0.text : "□ " + $0.text
+                          })
+            }
+        if !gone.isEmpty { archive(gone) }
+    }
+
+    /// Rebuilds the vault files from `swept.json`, for launch: picks up the
+    /// history written before the export existed, and a vault that was missing
+    /// last time.
+    func exportWorkLog() {
+        let (_, decoder) = Store.sweptCoding
+        let all = (try? Data(contentsOf: sweptURL))
+            .flatMap { try? decoder.decode([SweptItem].self, from: $0) } ?? []
+        WorkLog.export(all)
     }
 
     var allTags: [String] {

@@ -100,6 +100,8 @@
 "row.deleteSub.tip"     = "Remove this step";
 "empty.hint"            = "Click ＋ in the corner to start a list";
 "tabBar.collapse.tip"   = "Collapse to just the tab strip";
+"tabBar.pin.tip"        = "Pin above other windows";
+"tabBar.unpin.tip"      = "Unpin, so other windows can cover it";
 "tabBar.newList.tip"    = "New list";
 
 /* --- Alerts --- */

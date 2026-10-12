@@ -90,6 +90,8 @@
 "row.deleteSub.tip"     = "删掉这一步";
 "empty.hint"            = "点右上角 ＋ 新建一个清单";
 "tabBar.collapse.tip"   = "折叠成一条标签栏";
+"tabBar.pin.tip"        = "钉在最前面";
+"tabBar.unpin.tip"      = "取消钉住，可以被其他窗口盖住";
 "tabBar.newList.tip"    = "新建清单";
 
 /* --- 弹窗 --- */

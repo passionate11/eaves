@@ -4,9 +4,8 @@ import AppKit
 
 /// Builds the application's main menu.
 ///
-/// Eaves is an `LSUIElement` app, so this menu is never *drawn* anywhere —
-/// there is no menu bar to draw it in. It is installed purely because the main
-/// menu is the table AppKit consults to resolve key equivalents: `NSApplication`
+/// Shown in the menu bar while Eaves is the active app, but it matters more as
+/// the table AppKit consults to resolve key equivalents: `NSApplication`
 /// offers every ⌘-chord to `mainMenu.performKeyEquivalent(with:)` before the
 /// event ever reaches the key window. With no main menu there is nothing to
 /// consult, which is why ⌘Z, ⌘A, ⌘C and ⌘V did nothing at all — the shortcuts

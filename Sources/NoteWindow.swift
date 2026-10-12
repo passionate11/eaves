@@ -16,9 +16,9 @@ enum M {
     static let tab: CGFloat = 34 + tabGutter
     static let footer: CGFloat = 34
     static let pad: CGFloat = 14
-    static let rowMin: CGFloat = 32
+    static let rowMin: CGFloat = 28
     /// Row padding above and below the text.
-    static let rowPad: CGFloat = 7
+    static let rowPad: CGFloat = 5
     static let corner: CGFloat = 16
     /// Thickness of the accent progress line at the bottom edge of the tab strip.
     static let progressBar: CGFloat = 2
@@ -75,7 +75,7 @@ final class NoteWindow: NSPanel {
 
     init(frame: NSRect) {
         super.init(contentRect: frame,
-                   styleMask: [.borderless, .nonactivatingPanel],
+                   styleMask: [.borderless],
                    backing: .buffered,
                    defer: false)
         isFloatingPanel = true
@@ -84,13 +84,23 @@ final class NoteWindow: NSPanel {
         backgroundColor = .clear
         hasShadow = true
         isMovableByWindowBackground = false
-        collectionBehavior = [.canJoinAllSpaces, .stationary,
-                              .fullScreenAuxiliary, .ignoresCycle]
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         animationBehavior = .none
     }
 
     func applyFloatOnTop(_ on: Bool) {
         level = on ? .floating : .normal
+    }
+
+    /// A panel is not always raised by a click the way an ordinary window is,
+    /// so an unpinned one could stay under whatever covered it while being
+    /// typed into. Raise it on the way in.
+    override func sendEvent(_ event: NSEvent) {
+        if level == .normal,
+           event.type == .leftMouseDown || event.type == .rightMouseDown {
+            orderFrontRegardless()
+        }
+        super.sendEvent(event)
     }
 }
 
