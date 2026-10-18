@@ -55,27 +55,42 @@ enum WorkLog {
         let byMonth = Dictionary(grouping: rows) { cal.component(.month, from: $0.done) }
         for m in byMonth.keys.sorted(by: >) {
             let rows = byMonth[m]!.sorted { $0.done > $1.done }
-            let out = rows.filter { $0.outcome == .dropped }.count
-            lines += [
-                "",
-                "## \(m) 月（完成 \(rows.count - out) · 叉掉 \(out)）",
-                "",
-                "| 结束时间 | 状态 | 事项 | 便签 | 用时 | 步骤 |",
-                "| --- | --- | --- | --- | --- | --- |",
-            ]
-            for r in rows {
-                let state = r.outcome == .dropped ? "✖ 叉掉" : "✅ 完成"
-                let took = r.created.map { duration(r.done.timeIntervalSince($0)) } ?? "—"
-                // Numbered in the order they sat under the item. A table cell
-                // cannot hold a real list, so the numbers are plain text.
-                let steps = (r.steps ?? []).enumerated()
-                    .map { "\($0.offset + 1). " + cell($0.element) }
-                    .joined(separator: "<br>")
-                lines.append("| \(stamp.string(from: r.done)) | \(state) | \(cell(r.text)) "
-                             + "| \(cell(r.note)) | \(took) | \(steps) |")
+            lines += ["", "## \(m) 月（\(tally(rows))）"]
+            // One table per list within the month, the busiest first, so the
+            // review reads as "how far did each line of work get". Ties go
+            // by name so the order does not shuffle between rebuilds.
+            let byNote = Dictionary(grouping: rows, by: \.note)
+            let order = byNote.keys.sorted {
+                (byNote[$0]!.count, $1) > (byNote[$1]!.count, $0)
+            }
+            for name in order {
+                lines += [
+                    "",
+                    "### \(name.isEmpty ? "未命名" : name)（\(tally(byNote[name]!))）",
+                    "",
+                    "| 结束时间 | 状态 | 事项 | 用时 | 步骤 |",
+                    "| --- | --- | --- | --- | --- |",
+                ]
+                for r in byNote[name]! {
+                    let state = r.outcome == .dropped ? "✖ 叉掉" : "✅ 完成"
+                    let took = r.created.map { duration(r.done.timeIntervalSince($0)) } ?? "—"
+                    // Numbered in the order they sat under the item. A table cell
+                    // cannot hold a real list, so the numbers are plain text.
+                    let steps = (r.steps ?? []).enumerated()
+                        .map { "\($0.offset + 1). " + cell($0.element) }
+                        .joined(separator: "<br>")
+                    lines.append("| \(stamp.string(from: r.done)) | \(state) | \(cell(r.text)) "
+                                 + "| \(took) | \(steps) |")
+                }
             }
         }
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// "完成 3 · 叉掉 1", or just "完成 3" when nothing was dropped.
+    private static func tally(_ rows: [Store.SweptItem]) -> String {
+        let out = rows.filter { $0.outcome == .dropped }.count
+        return out == 0 ? "完成 \(rows.count)" : "完成 \(rows.count - out) · 叉掉 \(out)"
     }
 
     /// Text as a table cell: a `|` would end the cell and a newline the row.
