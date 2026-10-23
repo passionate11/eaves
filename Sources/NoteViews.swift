@@ -782,7 +782,7 @@ func struckText(_ text: String, tick t: CGFloat, font: NSFont) -> NSAttributedSt
 /// It is a subview of the item row, which is what makes dragging free: the whole
 /// block lifts together because the steps are inside the thing being lifted.
 final class SubRowView: FlippedView {
-    static let font = NSFont.systemFont(ofSize: 12)
+    static let font = NSFont.systemFont(ofSize: 13)
     static let boxSide: CGFloat = 13
     /// How far a step is inset past the item's own text.
     static let indent: CGFloat = 16
@@ -937,7 +937,7 @@ final class SubRowView: FlippedView {
 }
 
 final class ItemRowView: FlippedView {
-    static let font = NSFont.systemFont(ofSize: 14)
+    static let font = NSFont.systemFont(ofSize: 15)
     static let checkboxW: CGFloat = 25
     static let trailing: CGFloat = 20
     static let boxSide: CGFloat = 17

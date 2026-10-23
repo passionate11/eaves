@@ -404,7 +404,7 @@ final class BoardController: NSObject, NSWindowDelegate {
         addField.isBordered = false
         addField.drawsBackground = false
         addField.focusRingType = .none
-        addField.font = .systemFont(ofSize: 13.5)
+        addField.font = .systemFont(ofSize: 14.5)
         addField.placeholderString = L("field.addTodo")
         addField.delegate = self
         addField.cell?.usesSingleLineMode = true
