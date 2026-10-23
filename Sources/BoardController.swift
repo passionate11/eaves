@@ -404,7 +404,7 @@ final class BoardController: NSObject, NSWindowDelegate {
         addField.isBordered = false
         addField.drawsBackground = false
         addField.focusRingType = .none
-        addField.font = .systemFont(ofSize: 12.5)
+        addField.font = .systemFont(ofSize: 13.5)
         addField.placeholderString = L("field.addTodo")
         addField.delegate = self
         addField.cell?.usesSingleLineMode = true
@@ -1222,7 +1222,7 @@ final class BoardController: NSObject, NSWindowDelegate {
         let mi = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         mi.attributedTitle = NSAttributedString(
             string: title,
-            attributes: [.font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+            attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold),
                          .foregroundColor: NSColor.secondaryLabelColor])
         mi.isEnabled = false
         return mi

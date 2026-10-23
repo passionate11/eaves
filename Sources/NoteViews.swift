@@ -20,9 +20,9 @@ protocol TabBarDelegate: AnyObject {
 /// One tab. Drawn rather than composed from controls, because a tab has to
 /// shrink below the point where stacked NSTextFields would lay out sensibly.
 final class TabItemView: FlippedView {
-    static let titleFont = NSFont.systemFont(ofSize: 11.5, weight: .medium)
-    static let activeTitleFont = NSFont.systemFont(ofSize: 11.5, weight: .semibold)
-    static let progFont = NSFont.systemFont(ofSize: 10, weight: .medium)
+    static let titleFont = NSFont.systemFont(ofSize: 12.5, weight: .medium)
+    static let activeTitleFont = NSFont.systemFont(ofSize: 12.5, weight: .semibold)
+    static let progFont = NSFont.systemFont(ofSize: 11, weight: .medium)
 
     weak var delegate: TabBarDelegate?
     private(set) var id = UUID()
@@ -782,7 +782,7 @@ func struckText(_ text: String, tick t: CGFloat, font: NSFont) -> NSAttributedSt
 /// It is a subview of the item row, which is what makes dragging free: the whole
 /// block lifts together because the steps are inside the thing being lifted.
 final class SubRowView: FlippedView {
-    static let font = NSFont.systemFont(ofSize: 11)
+    static let font = NSFont.systemFont(ofSize: 12)
     static let boxSide: CGFloat = 13
     /// How far a step is inset past the item's own text.
     static let indent: CGFloat = 16
@@ -937,7 +937,7 @@ final class SubRowView: FlippedView {
 }
 
 final class ItemRowView: FlippedView {
-    static let font = NSFont.systemFont(ofSize: 13)
+    static let font = NSFont.systemFont(ofSize: 14)
     static let checkboxW: CGFloat = 25
     static let trailing: CGFloat = 20
     static let boxSide: CGFloat = 17
